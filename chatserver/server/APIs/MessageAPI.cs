@@ -8,5 +8,6 @@ namespace chatserver.server.APIs
 {
     internal class MessageAPI
     {
+
     }
 }

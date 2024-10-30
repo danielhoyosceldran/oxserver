@@ -14,7 +14,7 @@ namespace chatserver
         static async Task Main(string[] args)
         {
             // Més endevant m'iteressarà no tenir l'await
-            await Server.start();
+            await WebSocketsServer.start();
         }
     }
 }

@@ -2,12 +2,11 @@
 using System.Net;
 using System.Text;
 
-
 namespace chatserver.server
 {
-    class Server
+    class WebSocketsServer
     {
-        // Especifica l'adreça IP i el port on el servidor WebSocket escoltarà
+        // Creem el punt d'entrada
         private static readonly string serverAddress = "http://*:5000/";
         private static Dictionary<string, WebSocket> webSockets = new Dictionary<string, WebSocket>();
 
@@ -20,7 +19,7 @@ namespace chatserver.server
             Console.WriteLine("Servidor WebSocket en execució a: " + serverAddress);
 
             // Bucle infinit per acceptar connexions
-            // Es queda aquí fins que algun client es conecta.
+            // Es queda aquí fins que algun client es conecta
             while (true)
             {
                 // Acceptar sol·licitud de connexió
@@ -30,6 +29,8 @@ namespace chatserver.server
                 if (context.Request.IsWebSocketRequest)
                 {
                     // Gestionar connexió WebSocket
+                    // La gestió es fa a un thread a part per a poder seguir acceptant connexions
+                    // TODO - Mirar si quest wharning (el de que cal un "await")
                     HandleWebSocketConnectionAsync(context);
                 }
                 else
@@ -49,7 +50,7 @@ namespace chatserver.server
             try
             {
                 wsContext = await context.AcceptWebSocketAsync(subProtocol: null);
-                Console.WriteLine("Connexió WebSocket acceptada.");
+                Console.WriteLine("[server] - new connection accepted");
             }
             catch (Exception e)
             {
@@ -61,10 +62,13 @@ namespace chatserver.server
 
             // Obtenir el WebSocket actiu
             WebSocket webSocket = wsContext.WebSocket;
+
+            // save the user connection
             webSockets.Add(webSockets.Count.ToString(), webSocket);
 
             // Bucle per rebre missatges del client
-            byte[] buffer = new byte[1024];
+            // 4k caràcters
+            byte[] buffer = new byte[4096];
             while (webSocket.State == WebSocketState.Open)
             {
                 try
@@ -74,16 +78,17 @@ namespace chatserver.server
 
                     // Si la connexió és tancada pel client
                     if (result.MessageType == WebSocketMessageType.Close)
-                    {
-                        Console.WriteLine("El client ha tancat la connexió.");
-                        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Connexió tancada pel client", CancellationToken.None);
+                    { 
+                        Console.WriteLine("[server] - A client has closed the connection");
+                        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Connection closed", CancellationToken.None);
                     }
+
                     // If the message is text...
                     else if (result.MessageType == WebSocketMessageType.Text)
                     {
                         // Read the recieved message
                         string clientMessage = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                        Console.WriteLine("Missatge rebut del client: " + clientMessage);
+                        Console.WriteLine("Message: " + clientMessage);
 
                         // Send reply
                         foreach (KeyValuePair<string, WebSocket> ws in webSockets)
