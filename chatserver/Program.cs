@@ -13,8 +13,11 @@ namespace chatserver
     {
         static async Task Main(string[] args)
         {
-            // Més endevant m'iteressarà no tenir l'await
-            await WebSocketsServer.start();
+            _ = RequestsServer.start();
+            _ = WebSocketsServer.start();
+
+            // keep the programm running always
+            await Task.Delay(-1);
         }
     }
 }
