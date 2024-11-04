@@ -1,4 +1,5 @@
-﻿using System;
+﻿using chatserver.DDBB;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -12,14 +13,17 @@ namespace chatserver.server.APIs
 
         public static bool regiterUser(string data)
         {
-            var parsedData = JsonDocument.Parse(data);
+            JsonDocument parsedData = JsonDocument.Parse(data);
             var root = parsedData.RootElement;
 
             string name = root.GetProperty("name").GetString();
             string username = root.GetProperty("username").GetString();
             string password = root.GetProperty("password").GetString();
 
-            Logger.DataBaseLogger.Debug("[reg] start - " + username);
+            DDBBHandler dDBBHandler = DDBBHandler.Instance;
+            dDBBHandler.write("users", root);
+
+            Logger.UsersLogger.Debug("[register user] start - " + username);
             Logger.ConsoleLogger.Debug("[UsersAPI - registerUser] - Data rebuda: " + data);
 
             return true;
