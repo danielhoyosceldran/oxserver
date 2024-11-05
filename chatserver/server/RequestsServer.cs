@@ -1,8 +1,10 @@
 ﻿using chatserver.server.APIs;
+using log4net.Util;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Security.Policy;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -42,24 +44,16 @@ namespace chatserver.server
 
                 // TODO: comprovar de quin tipus de request es tracta i enviar-ho a un thread a part per a que es gestioni a part
                 // El thread s'haùrpa de tancar correctament
-                if (request.HttpMethod == "POST" && request.Url?.AbsolutePath == "/register_user")
+                if (request.HttpMethod == "POST")
                 {
-                    if (request.HasEntityBody)
-                    {
-                        var body = request.InputStream;
-                        var encoding = request.ContentEncoding;
-                        var reader = new StreamReader(body, encoding);
-                        if (request.ContentType != null)
-                        {
-                            Logger.RequestServerLogger.Debug("Client data content type {0}" + request.ContentType);
-                        }
-                        Logger.RequestServerLogger.Debug("Client data content length {0}" + request.ContentLength64);
+                    // Aquí pot haber problemes en cas de tenir nulls
+                    // no puc simplement fer "return". He de fer el recieve.
+                    string? absolutePath = request.Url?.AbsolutePath;
+                    string[]? segments = request.Url?.Segments.Select(s => s.Trim('/')).ToArray();
 
-                        // reding data
-                        string recievedData = reader.ReadToEnd(); 
-                        await usersAPI.regiterUser(recievedData);
-                        reader.Close();
-                        body.Close();
+                    if (segments[0] == "/users")
+                    {
+                        handleUserReqeusts(request);
                     }
                 }
 
@@ -75,6 +69,27 @@ namespace chatserver.server
 
 
                 Receive();
+            }
+        }
+
+        private static async void handleUserReqeusts(HttpListenerRequest? request)
+        {
+            if (request.HasEntityBody)
+            {
+                var body = request.InputStream;
+                var encoding = request.ContentEncoding;
+                var reader = new StreamReader(body, encoding);
+                if (request.ContentType != null)
+                {
+                    Logger.RequestServerLogger.Debug("Client data content type {0}" + request.ContentType);
+                }
+                Logger.RequestServerLogger.Debug("Client data content length {0}" + request.ContentLength64);
+
+                // reding data
+                string recievedData = reader.ReadToEnd();
+                await usersAPI.regiterUser(recievedData);
+                reader.Close();
+                body.Close();
             }
         }
     }

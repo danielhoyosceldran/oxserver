@@ -1,4 +1,5 @@
 ﻿using chatserver.DDBB;
+using chatserver.utils;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,37 +13,64 @@ namespace chatserver.server.APIs
         private readonly string DB_COLLECTION_NAME = "users";
         public UsersAPI() { }
 
-        public async Task<bool> regiterUser(string data)
+        public async Task<ExitStatus> regiterUser(string data)
         {
-            // TODO: arreglar tema de possibles null
-            JsonDocument parsedData = JsonDocument.Parse(data);
-            var root = parsedData.RootElement;
-
-            string name = root.GetProperty(Users.NAME).GetString();
-            string username = root.GetProperty(Users.USERNAME).GetString();
-            string password = root.GetProperty(Users.PASSWORD).GetString();
-
-            if (await userExists(username))
+            try
             {
-                Logger.ConsoleLogger.Debug("L'usuari ja existeix");
-                return false;
+                JsonDocument parsedData = JsonDocument.Parse(data);
+                var root = parsedData.RootElement;
+
+                string? name = root.GetProperty(Users.NAME).GetString();
+                string? username = root.GetProperty(Users.USERNAME).GetString();
+                string? password = root.GetProperty(Users.PASSWORD).GetString();
+
+                if ((await userExists(username)).status)
+                {
+                    Logger.ConsoleLogger.Debug("L'usuari ja existeix");
+                    return new ExitStatus
+                    {
+                        code = ExitStatus.Code.ERROR,
+                        message = "User already exists."
+                    };
+                }
+
+                DDBBHandler dDBBHandler = DDBBHandler.getInstance();
+                await dDBBHandler.write("users", root);
+
+                Logger.UsersLogger.Debug("[register user] start - " + username);
+                Logger.ConsoleLogger.Debug("[UsersAPI - registerUser] - Data rebuda: " + data);
+
+                return new ExitStatus();
             }
-
-            DDBBHandler dDBBHandler = DDBBHandler.getInstance();
-            dDBBHandler.write("users", root);
-
-            Logger.UsersLogger.Debug("[register user] start - " + username);
-            Logger.ConsoleLogger.Debug("[UsersAPI - registerUser] - Data rebuda: " + data);
-
-            return true;
+            catch (Exception ex) 
+            {
+                return new ExitStatus
+                {
+                    code = ExitStatus.Code.EXCEPTION,
+                    message = ex.Message,
+                    status = false
+                };
+            }
         }
 
-        private async Task<bool> userExists(string username)
+        private async Task<ExitStatus> userExists(string username)
         {
-            DDBBHandler dDBBHandler = DDBBHandler.getInstance();
-            utils.ResultJson result = await dDBBHandler.find(DB_COLLECTION_NAME, Users.USERNAME, username);
-            
-            return result.status;
+            try
+            {
+                DDBBHandler dDBBHandler = DDBBHandler.getInstance();
+                utils.ResultJson result = await dDBBHandler.find(DB_COLLECTION_NAME, Users.USERNAME, username);
+
+                return new ExitStatus();
+            }
+            catch (Exception ex)
+            {
+                return new ExitStatus
+                {
+                    code = ExitStatus.Code.EXCEPTION,
+                    message = ex.Message,
+                    status = false
+                };
+            }
         }
     }
 }
