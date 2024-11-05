@@ -13,6 +13,7 @@ namespace chatserver.server
         private static int Port = 8081;
 
         private static HttpListener _listener;
+        private static UsersAPI usersAPI = new UsersAPI();
 
         public static async Task start()
         {
@@ -32,13 +33,15 @@ namespace chatserver.server
             _listener.BeginGetContext(new AsyncCallback(ListenerCallback), _listener);
         }
 
-        private static void ListenerCallback(IAsyncResult result)
+        private async static void ListenerCallback(IAsyncResult result)
         {
             if (_listener.IsListening)
             {
                 var context = _listener.EndGetContext(result);
                 var request = context.Request;
 
+                // TODO: comprovar de quin tipus de request es tracta i enviar-ho a un thread a part per a que es gestioni a part
+                // El thread s'haùrpa de tancar correctament
                 if (request.HttpMethod == "POST" && request.Url?.AbsolutePath == "/register_user")
                 {
                     if (request.HasEntityBody)
@@ -53,8 +56,8 @@ namespace chatserver.server
                         Logger.RequestServerLogger.Debug("Client data content length {0}" + request.ContentLength64);
 
                         // reding data
-                        string recievedData = reader.ReadToEnd();
-                        UsersAPI.regiterUser(recievedData);
+                        string recievedData = reader.ReadToEnd(); 
+                        await usersAPI.regiterUser(recievedData);
                         reader.Close();
                         body.Close();
                     }

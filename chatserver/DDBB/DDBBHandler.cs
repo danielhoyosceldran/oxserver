@@ -15,41 +15,52 @@ namespace chatserver.DDBB
     {
         MongoClient client;
         private readonly string DATA_BASE_NAME = "chat";
-        public static DDBBHandler Instance = new DDBBHandler();
+        private static DDBBHandler instance = new DDBBHandler();
+        public static DDBBHandler getInstance() 
+        {
+            if (instance == null)
+            {
+                // Should never enter. But in case of error...
+                instance = new DDBBHandler();
+            }
+            return instance; 
+        }
         private DDBBHandler()
         {
             Logger.DataBaseLogger.Debug("Initializing DDBB");
             client = new MongoClient("mongodb://localhost:27017");
         }
 
-        public async void write(string table, JsonElement data)
+        public async void write(string collectionName, JsonElement data)
         {
-            Logger.DataBaseLogger.Debug("[write] - table: " + table);
-            Logger.ConsoleLogger.Debug("[write] - table: " + table);
+            Logger.DataBaseLogger.Debug("[write] - collection: " + collectionName);
+            Logger.ConsoleLogger.Debug("[write] - collection: " + collectionName);
             // Accedir a la base de dades 'test'
             var database = client.GetDatabase(DATA_BASE_NAME);
 
             // Accedir a la col·lecció 'testddbb'
-            var collection = database.GetCollection<BsonDocument>(table);
+            var collection = database.GetCollection<BsonDocument>(collectionName);
             BsonDocument bsonDocument = BsonDocument.Parse(data.ToString());
 
             await collection.InsertOneAsync(bsonDocument);
         }
 
-        public async Task<JsonDocument?> find(string table, string key, string value)
+        public async Task<utils.ResultJson> find(string collectionName, string key, string value)
         {
             // Accedir a la base de dades 'test'
             var database = client.GetDatabase(DATA_BASE_NAME);
 
             // Accedir a la col·lecció 'testddbb'
-            var collection = database.GetCollection<BsonDocument>(table);
+            var collection = database.GetCollection<BsonDocument>(collectionName);
 
-            var filter = Builders<BsonDocument>.Filter.Eq(key, value); // Filtre per nom = "Joan"
-            BsonDocument result = await collection.Find(filter).FirstOrDefaultAsync();
+            var filter = Builders<BsonDocument>.Filter.Eq(key, value);
+            BsonDocument bResult = await collection.Find(filter).FirstOrDefaultAsync();
 
-            return result == null 
-                ? null 
-                : JsonDocument.Parse(result.ToJson());
+            return new utils.ResultJson
+            {
+                status = bResult != null,
+                data = bResult != null ? JsonDocument.Parse(bResult.ToJson()) : null
+            };
         }
     }
 }
