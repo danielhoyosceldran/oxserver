@@ -8,10 +8,10 @@ using System.Threading.Tasks;
 
 namespace chatserver.server.APIs
 {
-    internal class UsersAPI
+    internal class UsersHandler
     {
         private readonly string DB_COLLECTION_NAME = "users";
-        public UsersAPI() { }
+        public UsersHandler() { }
 
         public async Task<ExitStatus> regiterUser(string data)
         {
@@ -60,7 +60,12 @@ namespace chatserver.server.APIs
                 DDBBHandler dDBBHandler = DDBBHandler.getInstance();
                 utils.ResultJson result = await dDBBHandler.find(DB_COLLECTION_NAME, Users.USERNAME, username);
 
-                return new ExitStatus();
+                return new ExitStatus()
+                {
+                    code = result.code,
+                    message = result.message,
+                    status = result.status,
+                };
             }
             catch (Exception ex)
             {

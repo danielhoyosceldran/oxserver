@@ -68,6 +68,7 @@ namespace chatserver.DDBB
 
                 return new utils.ResultJson
                 {
+                    code = bResult != null ? utils.ExitStatus.Code.OK : utils.ExitStatus.Code.NOT_FOUND,
                     status = bResult != null,
                     data = bResult != null ? JsonDocument.Parse(bResult.ToJson()) : null
                 };

@@ -13,7 +13,7 @@ namespace chatserver
     {
         static async Task Main(string[] args)
         {
-            _ = RequestsServer.start();
+            _ = API.start();
             _ = WebSocketsServer.start();
 
             // keep the programm running always
