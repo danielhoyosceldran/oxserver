@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace chatserver.server.APIs
 {
-    internal class MessageAPI
+    internal class ChatHandler
     {
 
     }

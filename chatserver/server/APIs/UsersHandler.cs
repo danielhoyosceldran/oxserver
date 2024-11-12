@@ -20,11 +20,14 @@ namespace chatserver.server.APIs
                 JsonDocument parsedData = JsonDocument.Parse(data);
                 var root = parsedData.RootElement;
 
-                string? name = root.GetProperty(Users.NAME).GetString();
-                string? username = root.GetProperty(Users.USERNAME).GetString();
-                string? password = root.GetProperty(Users.PASSWORD).GetString();
+                string? name = root.GetProperty(UsersDDBBStructure.NAME).GetString();
+                string? username = root.GetProperty(UsersDDBBStructure.USERNAME).GetString();
+                string? password = root.GetProperty(UsersDDBBStructure.PASSWORD).GetString();
 
-                if ((await userExists(username)).status)
+                Logger.UsersLogger.Debug("[register user] start - " + username);
+                Logger.ConsoleLogger.Debug("[UsersAPI - registerUser] - Data rebuda: " + data);
+
+                if ((await userExists(username!)).status)
                 {
                     Logger.ConsoleLogger.Debug("L'usuari ja existeix");
                     return new ExitStatus
@@ -37,19 +40,66 @@ namespace chatserver.server.APIs
                 DDBBHandler dDBBHandler = DDBBHandler.getInstance();
                 await dDBBHandler.write("users", root);
 
-                Logger.UsersLogger.Debug("[register user] start - " + username);
-                Logger.ConsoleLogger.Debug("[UsersAPI - registerUser] - Data rebuda: " + data);
-
                 return new ExitStatus();
             }
             catch (Exception ex) 
             {
-                return new ExitStatus
+                ExitStatus ret = new ExitStatus
                 {
                     code = ExitStatus.Code.EXCEPTION,
                     message = ex.Message,
                     status = false
                 };
+                if (ex.Source == "System.Text.Json")
+                {
+                    // BAd request becouse this expetions means that
+                    // the content of the recieved json is not correct
+                    ret.code = ExitStatus.Code.BAD_REQUEST;
+                }
+                return ret;
+            }
+        }
+
+        public async Task<ExitStatus> signinUser(string data)
+        {
+            try
+            {
+                JsonDocument parsedData = JsonDocument.Parse(data);
+                var root = parsedData.RootElement;
+
+                string? username = root.GetProperty(UsersDDBBStructure.USERNAME).GetString();
+                string? password = root.GetProperty(UsersDDBBStructure.PASSWORD).GetString();
+
+
+                Logger.UsersLogger.Debug("[login user] start - " + username);
+                Logger.ConsoleLogger.Debug("[UsersAPI - loginUser] - Data rebuda: " + data);
+
+                if (!(await userExists(username!)).status)
+                {
+                    return new ExitStatus
+                    {
+                        code = ExitStatus.Code.NOT_FOUND,
+                        message = "User do not exist."
+                    };
+                }
+
+                return new ExitStatus();
+            }
+            catch (Exception ex)
+            {
+                ExitStatus ret = new ExitStatus
+                {
+                    code = ExitStatus.Code.EXCEPTION,
+                    message = ex.Message,
+                    status = false
+                };
+                if (ex.Source == "System.Text.Json")
+                {
+                    // BAd request becouse this expetions means that
+                    // the content of the recieved json is not correct
+                    ret.code = ExitStatus.Code.BAD_REQUEST;
+                }
+                return ret;
             }
         }
 
@@ -58,7 +108,7 @@ namespace chatserver.server.APIs
             try
             {
                 DDBBHandler dDBBHandler = DDBBHandler.getInstance();
-                utils.ResultJson result = await dDBBHandler.find(DB_COLLECTION_NAME, Users.USERNAME, username);
+                utils.ResultJson result = await dDBBHandler.find(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username);
 
                 return new ExitStatus()
                 {

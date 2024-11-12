@@ -4,7 +4,7 @@ using System.Text;
 
 namespace chatserver.server
 {
-    class WebSocketsServer
+    class ChatServer
     {
         // Creem el punt d'entrada
         private static readonly string serverAddress = "http://*:5000/";

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace chatserver.DDBB
 {
-    public class Users
+    public class UsersDDBBStructure
     {
         public static readonly string NAME = "name";
         public static readonly string USERNAME = "username";

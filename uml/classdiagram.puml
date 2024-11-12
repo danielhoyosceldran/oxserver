@@ -1,0 +1,80 @@
+@startuml
+left to right direction
+
+class Program {
+    +Main(args: string[]): Task
+}
+
+class ExitStatus {
+    -status: bool
+    -code: ExitStatus.Code
+    -message: string
+    +ExitStatus()
+    +Code: enum { OK, UNKNOWN_ERROR, EXCEPTION, ERROR, NOT_FOUND, NOT_AUTHORIZED }
+}
+
+class ResultJson {
+    +data: JsonDocument
+}
+
+class API {
+    -Port: int
+    -_listener: HttpListener
+    -usersAPI: UsersHandler
+    +start(): Task
+    +Stop()
+    -Receive()
+    -ListenerCallback(result: IAsyncResult)
+    -handleUserReqeusts(context: HttpListenerContext, request: HttpListenerRequest, response: HttpListenerResponse, segments: string[]): Task
+}
+
+class ChatServer {
+    -serverAddress: string
+    -webSockets: Dictionary<string, WebSocket>
+    +start(): Task
+    -HandleWebSocketConnectionAsync(context: HttpListenerContext): Task
+    -sendMessage(webSocket: WebSocket, clientMessage: string, from: string): Task
+}
+
+class UsersHandler {
+    -DB_COLLECTION_NAME: string
+    +regiterUser(data: string): Task<ExitStatus>
+    -userExists(username: string): Task<ExitStatus>
+}
+
+class DDBBHandler {
+    -client: MongoClient
+    -DATA_BASE_NAME: string
+    -instance: DDBBHandler
+    +getInstance(): DDBBHandler
+    +write(collectionName: string, data: JsonElement): Task<ExitStatus>
+    +find(collectionName: string, key: string, value: string): Task<ResultJson>
+}
+
+class Logger {
+    -RequestServerLogger: ILog
+    -WebSocketsServerLogger: ILog
+    -DataBaseLogger: ILog
+    -UsersLogger: ILog
+    -ConsoleLogger: ILog
+    +Logger()
+}
+
+class UsersDDBBStructure {
+    +NAME: string
+    +USERNAME: string
+    +PASSWORD: string
+}
+
+' Relacions entre les classes
+Program -[hidden]-> API
+Program -[hidden]-> ChatServer
+API -> UsersHandler
+ChatServer -> WebSocket
+UsersHandler -> DDBBHandler
+DDBBHandler -> MongoClient
+Logger -> ILog
+UsersDDBBStructure --> "NAME, USERNAME, PASSWORD"
+ResultJson -|> ExitStatus
+
+@enduml

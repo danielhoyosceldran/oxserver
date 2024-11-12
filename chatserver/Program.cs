@@ -14,7 +14,7 @@ namespace chatserver
         static async Task Main(string[] args)
         {
             _ = API.start();
-            _ = WebSocketsServer.start();
+            _ = ChatServer.start();
 
             // keep the programm running always
             await Task.Delay(-1);

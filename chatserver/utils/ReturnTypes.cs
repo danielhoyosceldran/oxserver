@@ -28,6 +28,7 @@ namespace chatserver.utils
             UNKNOWN_ERROR = 1,
             EXCEPTION = 2,
             ERROR = 3,
+            BAD_REQUEST = 4,
             NOT_FOUND = 404,
             NOT_AUTHORIZED = 401,
         }
