@@ -25,7 +25,7 @@ namespace chatserver.server.APIs
             return tokenProvider.GenerateToken(userId, username);
         }
 
-        public async Task<ExitStatus> regiterUser(string data)
+        public async Task<ExitStatus> signUpUser(string data)
         {
             try
             {
@@ -72,7 +72,7 @@ namespace chatserver.server.APIs
             }
         }
 
-        public async Task<ExitStatus> signinUser(string data)
+        public async Task<ExitStatus> signInUser(string data)
         {
             try
             {

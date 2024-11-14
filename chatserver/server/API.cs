@@ -63,7 +63,7 @@ namespace chatserver.server
 
                     if (segments[0] == "users")
                     {
-                        _ = handleUserRequests(context, request, response, segments.Skip(1).ToArray());
+                        await handleUserRequests(context, request, response, segments.Skip(1).ToArray());
                     }
                 }
                 else
@@ -82,67 +82,53 @@ namespace chatserver.server
             if (request == null) return;
             if (!request.HasEntityBody) return;
 
+            int responseCode = (int)HttpStatusCode.OK;
             try
             {
-                int responseCode = (int)HttpStatusCode.OK;
+                var body = request.InputStream;
+                var encoding = request.ContentEncoding;
+                var reader = new StreamReader(body, encoding);
+                if (request.ContentType != null)
+                {
+                    Logger.RequestServerLogger.Debug("Client data content type {0}" + request.ContentType);
+                }
+                Logger.RequestServerLogger.Debug("Client data content length {0}" + request.ContentLength64);
+
+                // reding data
+                string recievedData = reader.ReadToEnd();
+                ExitStatus result;
+
                 if (segments[0] == "signup_user")
                 {
-                    var body = request.InputStream;
-                    var encoding = request.ContentEncoding;
-                    var reader = new StreamReader(body, encoding);
-                    if (request.ContentType != null)
-                    {
-                        Logger.RequestServerLogger.Debug("Client data content type {0}" + request.ContentType);
-                    }
-                    Logger.RequestServerLogger.Debug("Client data content length {0}" + request.ContentLength64);
-
-                    // reding data
-                    string recievedData = reader.ReadToEnd();
-                    ExitStatus result = await usersAPI.regiterUser(recievedData);
-                    reader.Close();
-                    body.Close();
-
-
-                    responseCode = result.code == ExitStatus.Code.OK
-                        ? (int)HttpStatusCode.Created
-                        : result.code == ExitStatus.Code.BAD_REQUEST
-                        ? (int)HttpStatusCode.BadRequest
-                        : (int)HttpStatusCode.InternalServerError;
+                    result = await usersAPI.signUpUser(recievedData);
                 }
                 else if (segments[0] == "signin_user")
                 {
-                    var body = request.InputStream;
-                    var encoding = request.ContentEncoding;
-                    var reader = new StreamReader(body, encoding);
-                    if (request.ContentType != null)
-                    {
-                        Logger.RequestServerLogger.Debug("Client data content type {0}" + request.ContentType);
-                    }
-                    Logger.RequestServerLogger.Debug("Client data content length {0}" + request.ContentLength64);
-
-                    // reding data
-                    string recievedData = reader.ReadToEnd();
-                    ExitStatus result = await usersAPI.signinUser(recievedData);
-                    reader.Close();
-                    body.Close();
-
-                    responseCode = result.code == ExitStatus.Code.OK 
-                        ? (int)HttpStatusCode.OK
-                        : result.code == ExitStatus.Code.BAD_REQUEST
-                        ? (int)HttpStatusCode.BadRequest
-                        : (int)HttpStatusCode.InternalServerError;
+                    result = await usersAPI.signInUser(recievedData);
                 }
                 else
                 {
                     responseCode = (int)HttpStatusCode.NotModified;
+                    return;
                 }
+                result = await usersAPI.signUpUser(recievedData);
+                
+                reader.Close();
+                body.Close();
 
-                response.StatusCode = responseCode;
-                response.OutputStream.Close();
+                responseCode = result.code == ExitStatus.Code.OK
+                    ? (int)HttpStatusCode.OK
+                    : result.code == ExitStatus.Code.BAD_REQUEST
+                    ? (int)HttpStatusCode.BadRequest
+                    : (int)HttpStatusCode.InternalServerError;
             }
             catch (Exception ex)
             {
-                response.StatusCode = (int)HttpStatusCode.Conflict;
+                responseCode = (int)HttpStatusCode.Conflict;
+            }
+            finally
+            {
+                response.StatusCode = responseCode;
                 response.OutputStream.Close();
             }
         }
