@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using chatserver.utils;
+using System.Text.Json;
+using System.Text;
 
 namespace chatserver.server
 {
@@ -75,7 +77,7 @@ namespace chatserver.server
                 }
                 else
                 {
-                    response.StatusCode = (int)HttpStatusCode.Created;
+                    response.StatusCode = (int)HttpStatusCode.BadRequest;
                     response.OutputStream.Close();
                 }
 
@@ -86,6 +88,7 @@ namespace chatserver.server
         private static async Task<ExitStatus> handleSignRequests(string recievedData, HttpListenerResponse response, string action)
         {
             int responseCode = (int)HttpStatusCode.OK;
+            string responseMessage = "";
             ExitStatus exitStatus = new ExitStatus();
             try
             {
@@ -120,7 +123,20 @@ namespace chatserver.server
             }
             finally
             {
+                // TODO. S'ha de configurar bé la resposta
+                // La resposta s'envia al retornar? Crec que ho hauria de fer així.
                 response.StatusCode = responseCode;
+                response.ContentType = "application/json";
+                var responseObject = new
+                {
+                    message = responseMessage,
+                    status = "success",
+                    data = new { /* altres dades aquí */ }
+                };
+                string jsonResponse = JsonSerializer.Serialize(responseObject);
+                byte[] buffer = Encoding.UTF8.GetBytes(jsonResponse);
+                response.ContentLength64 = buffer.Length;
+                response.OutputStream.Write(buffer, 0, buffer.Length);
                 response.OutputStream.Close();
             }
                 return exitStatus;
