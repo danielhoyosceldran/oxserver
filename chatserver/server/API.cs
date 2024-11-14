@@ -45,6 +45,7 @@ namespace chatserver.server
 
                 var response = context.Response;
 
+                // CORS headers
                 response.AddHeader("Access-Control-Allow-Origin", "*");
                 response.AddHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
                 response.AddHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -72,12 +73,33 @@ namespace chatserver.server
                     List<string> requestRoutes = Utils.getUrlRoutes(url: request.Url!);
                     if (requestRoutes[0] == "sign_users")
                     {
-                        ExitStatus signResult = await handleSignRequests(recievedData, response, requestRoutes[1]);
+                        ExitStatus signResult = await handleSignRequests(recievedData, requestRoutes[1]);
+
+                        int responseCode = signResult.status == ExitCodes.OK
+                            ? (int)HttpStatusCode.OK
+                            : signResult.status == ExitCodes.BAD_REQUEST
+                            ? (int)HttpStatusCode.BadRequest
+                            : (int)HttpStatusCode.InternalServerError;
+
+                        response.StatusCode = responseCode;
+                        response.ContentType = "application/json";
+                        var responseObject = new
+                        {
+                            message = signResult.message,
+                            status = "success",
+                            data = new { /* altres dades aquí */ }
+                        };
+                        string jsonResponse = JsonSerializer.Serialize(responseObject);
+                        byte[] buffer = Encoding.UTF8.GetBytes(jsonResponse);
+                        response.ContentLength64 = buffer.Length;
+                        response.OutputStream.Write(buffer, 0, buffer.Length);
+                        response.OutputStream.Close();
                     }
                 }
-                else
+                else if (request.HttpMethod == "OPTIONS")
                 {
-                    response.StatusCode = (int)HttpStatusCode.BadRequest;
+                    // Tema CORS
+                    response.StatusCode = (int)HttpStatusCode.OK;
                     response.OutputStream.Close();
                 }
 
@@ -85,7 +107,7 @@ namespace chatserver.server
             }
         }
 
-        private static async Task<ExitStatus> handleSignRequests(string recievedData, HttpListenerResponse response, string action)
+        private static async Task<ExitStatus> handleSignRequests(string recievedData, string action)
         {
             int responseCode = (int)HttpStatusCode.OK;
             string responseMessage = "";
@@ -109,37 +131,14 @@ namespace chatserver.server
 
                 exitStatus.status = result.status;
                 exitStatus.message = result.message;
-                exitStatus.result = result;
-
-                responseCode = result.status == ExitCodes.OK
-                    ? (int)HttpStatusCode.OK
-                    : result.status == ExitCodes.BAD_REQUEST
-                    ? (int)HttpStatusCode.BadRequest
-                    : (int)HttpStatusCode.InternalServerError;
+                exitStatus.result = result.result;
             }
             catch (Exception ex)
             {
                 responseCode = (int)HttpStatusCode.Conflict;
             }
-            finally
-            {
-                // TODO. S'ha de configurar bé la resposta
-                // La resposta s'envia al retornar? Crec que ho hauria de fer així.
-                response.StatusCode = responseCode;
-                response.ContentType = "application/json";
-                var responseObject = new
-                {
-                    message = responseMessage,
-                    status = "success",
-                    data = new { /* altres dades aquí */ }
-                };
-                string jsonResponse = JsonSerializer.Serialize(responseObject);
-                byte[] buffer = Encoding.UTF8.GetBytes(jsonResponse);
-                response.ContentLength64 = buffer.Length;
-                response.OutputStream.Write(buffer, 0, buffer.Length);
-                response.OutputStream.Close();
-            }
-                return exitStatus;
+
+            return exitStatus;
         }
     }
 }

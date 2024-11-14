@@ -92,7 +92,10 @@ namespace chatserver.server.APIs
                     };
                 }
 
-                return new ExitStatus();
+                return new ExitStatus()
+                {
+                    message = "User logged in succesfuly.",
+                };
             }
             catch (Exception ex)
             {
