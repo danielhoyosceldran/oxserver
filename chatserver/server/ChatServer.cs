@@ -124,7 +124,5 @@ namespace chatserver.server
             byte[] responseBytes = Encoding.UTF8.GetBytes(responseMessage);
             await webSocket.SendAsync(new ArraySegment<byte>(responseBytes), WebSocketMessageType.Text, true, CancellationToken.None);
         }
-
     }
-
 }

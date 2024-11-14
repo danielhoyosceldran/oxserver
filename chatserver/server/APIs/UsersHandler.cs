@@ -88,7 +88,7 @@ namespace chatserver.server.APIs
                     return new ExitStatus
                     {
                         status = ExitCodes.NOT_FOUND,
-                        message = "User do not exist."
+                        message = "This user do not exist."
                     };
                 }
 

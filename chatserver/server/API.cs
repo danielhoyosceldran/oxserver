@@ -55,13 +55,22 @@ namespace chatserver.server
                     // no puc simplement fer "return". He de fer el recieve.
                     string? absolutePath = request.Url?.AbsolutePath;
 
-                    // I should control the: segments == null
-                    string[]? segments = request.Url?.Segments.Select(s => s.Trim('/')).ToArray().Skip(1).ToArray();
+                    var body = request.InputStream;
+                    var encoding = request.ContentEncoding;
+                    var reader = new StreamReader(body, encoding);
 
-                    if (segments[0] == "sign_users")
+                    // TODO: S'ha de comprovar que ens estan enviant un body. Sinó es respon directament que falta el cos.
+                    Logger.RequestServerLogger.Debug("Client data content length: " + request.ContentLength64);
+
+                    string recievedData = reader.ReadToEnd();
+
+                    reader.Close();
+                    body.Close();
+
+                    List<string> requestRoutes = Utils.getUrlRoutes(url: request.Url!);
+                    if (requestRoutes[0] == "sign_users")
                     {
-                        // S'ha de comprovar que els paràmetres no són null
-                        ExitStatus signResult = await handleSignRequests(context, request, response, segments.Skip(1).ToArray());
+                        ExitStatus signResult = await handleSignRequests(recievedData, response, requestRoutes[1]);
                     }
                 }
                 else
@@ -74,30 +83,19 @@ namespace chatserver.server
             }
         }
 
-        private static async Task<ExitStatus> handleSignRequests(HttpListenerContext context, HttpListenerRequest request, HttpListenerResponse response, String[] segments)
+        private static async Task<ExitStatus> handleSignRequests(string recievedData, HttpListenerResponse response, string action)
         {
             int responseCode = (int)HttpStatusCode.OK;
             ExitStatus exitStatus = new ExitStatus();
             try
             {
-                var body = request.InputStream;
-                var encoding = request.ContentEncoding;
-                var reader = new StreamReader(body, encoding);
-
-                if (request.ContentType != null)
-                    Logger.RequestServerLogger.Debug("Client data content type: " + request.ContentType);
-                Logger.RequestServerLogger.Debug("Client data content length: " + request.ContentLength64);
-
-                // Reading data
-                string recievedData = reader.ReadToEnd();
                 ExitStatus result;
 
-                string rute = segments[0];
-                if (rute == "signup_user")
+                if (action == "signup_user")
                 {
                     result = await usersAPI.signUpUser(recievedData);
                 }
-                else if (rute == "signin_user")
+                else if (action == "signin_user")
                 {
                     result = await usersAPI.signInUser(recievedData);
                 }
@@ -105,9 +103,6 @@ namespace chatserver.server
                 {
                     throw new Exception(CustomExceptionCdes.BAD_REQUESTS.ToString());
                 }
-                
-                reader.Close();
-                body.Close();
 
                 exitStatus.status = result.status;
                 exitStatus.message = result.message;
