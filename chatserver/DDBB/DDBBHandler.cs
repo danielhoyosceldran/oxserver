@@ -1,13 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using MongoDB.Bson;
+﻿using MongoDB.Bson;
 using MongoDB.Driver;
 using System.Text.Json;
-using System.Reflection.Metadata;
-using System.Security.Policy;
+using chatserver.utils;
 
 namespace chatserver.DDBB
 {
@@ -48,15 +42,15 @@ namespace chatserver.DDBB
 
                 await collection.InsertOneAsync(bsonDocument);
 
-                return new utils.ExitStatus { status = true, code = utils.ExitStatus.Code.OK };
+                return new utils.ExitStatus { status = ExitCodes.OK };
             }
             catch (Exception ex)
             {
-                return new utils.ExitStatus { status = false, code = utils.ExitStatus.Code.EXCEPTION, message = ex.Message };
+                return new utils.ExitStatus { status = ExitCodes.EXCEPTION, exception = ex.Message };
             }
         }
 
-        public async Task<utils.ResultJson> find(string collectionName, string key, string value)
+        public async Task<ExitStatus> find(string collectionName, string key, string value)
         {
             try
             {
@@ -66,20 +60,18 @@ namespace chatserver.DDBB
                 var filter = Builders<BsonDocument>.Filter.Eq(key, value);
                 BsonDocument bResult = await collection.Find(filter).FirstOrDefaultAsync();
 
-                return new utils.ResultJson
+                return new ExitStatus
                 {
-                    code = bResult != null ? utils.ExitStatus.Code.OK : utils.ExitStatus.Code.NOT_FOUND,
-                    status = bResult != null,
-                    data = bResult != null ? JsonDocument.Parse(bResult.ToJson()) : null
+                    status = bResult != null ? ExitCodes.OK : ExitCodes.NOT_FOUND,
+                    result = bResult != null ? JsonDocument.Parse(bResult.ToJson()) : null
                 };
             }
             catch (Exception ex)
             {
-                return new utils.ResultJson
+                return new ExitStatus
                 {
-                    status = false,
-                    code = utils.ExitStatus.Code.EXCEPTION,
-                    message = ex.Message
+                    status = ExitCodes.EXCEPTION,
+                    exception = ex.Message
                 };
             }
         }

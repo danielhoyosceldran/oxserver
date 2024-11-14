@@ -5,10 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Security.Policy;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.XPath;
+using chatserver.utils;
 
 namespace chatserver.server
 {
@@ -61,9 +58,10 @@ namespace chatserver.server
                     // I should control the: segments == null
                     string[]? segments = request.Url?.Segments.Select(s => s.Trim('/')).ToArray().Skip(1).ToArray();
 
-                    if (segments[0] == "users")
+                    if (segments[0] == "sign_users")
                     {
-                        await handleUserRequests(context, request, response, segments.Skip(1).ToArray());
+                        // S'ha de comprovar que els paràmetres no són null
+                        ExitStatus signResult = await handleSignRequests(context, request, response, segments.Skip(1).ToArray());
                     }
                 }
                 else
@@ -76,49 +74,48 @@ namespace chatserver.server
             }
         }
 
-        private static async Task handleUserRequests(HttpListenerContext? context, HttpListenerRequest? request, HttpListenerResponse response, String[] segments)
+        private static async Task<ExitStatus> handleSignRequests(HttpListenerContext context, HttpListenerRequest request, HttpListenerResponse response, String[] segments)
         {
-            // Això s'ha de controlar de diferent forma. Hem de saber què passa.
-            if (request == null) return;
-            if (!request.HasEntityBody) return;
-
             int responseCode = (int)HttpStatusCode.OK;
+            ExitStatus exitStatus = new ExitStatus();
             try
             {
                 var body = request.InputStream;
                 var encoding = request.ContentEncoding;
                 var reader = new StreamReader(body, encoding);
-                if (request.ContentType != null)
-                {
-                    Logger.RequestServerLogger.Debug("Client data content type {0}" + request.ContentType);
-                }
-                Logger.RequestServerLogger.Debug("Client data content length {0}" + request.ContentLength64);
 
-                // reding data
+                if (request.ContentType != null)
+                    Logger.RequestServerLogger.Debug("Client data content type: " + request.ContentType);
+                Logger.RequestServerLogger.Debug("Client data content length: " + request.ContentLength64);
+
+                // Reading data
                 string recievedData = reader.ReadToEnd();
                 ExitStatus result;
 
-                if (segments[0] == "signup_user")
+                string rute = segments[0];
+                if (rute == "signup_user")
                 {
                     result = await usersAPI.signUpUser(recievedData);
                 }
-                else if (segments[0] == "signin_user")
+                else if (rute == "signin_user")
                 {
                     result = await usersAPI.signInUser(recievedData);
                 }
                 else
                 {
-                    responseCode = (int)HttpStatusCode.NotModified;
-                    return;
+                    throw new Exception(CustomExceptionCdes.BAD_REQUESTS.ToString());
                 }
-                result = await usersAPI.signUpUser(recievedData);
                 
                 reader.Close();
                 body.Close();
 
-                responseCode = result.code == ExitStatus.Code.OK
+                exitStatus.status = result.status;
+                exitStatus.message = result.message;
+                exitStatus.result = result;
+
+                responseCode = result.status == ExitCodes.OK
                     ? (int)HttpStatusCode.OK
-                    : result.code == ExitStatus.Code.BAD_REQUEST
+                    : result.status == ExitCodes.BAD_REQUEST
                     ? (int)HttpStatusCode.BadRequest
                     : (int)HttpStatusCode.InternalServerError;
             }
@@ -131,6 +128,7 @@ namespace chatserver.server
                 response.StatusCode = responseCode;
                 response.OutputStream.Close();
             }
+                return exitStatus;
         }
     }
 }
