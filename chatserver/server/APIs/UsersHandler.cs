@@ -13,6 +13,18 @@ namespace chatserver.server.APIs
         private readonly string DB_COLLECTION_NAME = "users";
         public UsersHandler() { }
 
+        private string getUserToken(string userId, string username)
+        {
+            var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY");
+            if (secretKey != null)
+            {
+                // control this case
+            }
+            var tokenProvider = new authentication.TokenProvider(secretKey!, 60);
+
+            return tokenProvider.GenerateToken(userId, username);
+        }
+
         public async Task<ExitStatus> regiterUser(string data)
         {
             try

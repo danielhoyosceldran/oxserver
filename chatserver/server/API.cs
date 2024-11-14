@@ -102,6 +102,7 @@ namespace chatserver.server
                     reader.Close();
                     body.Close();
 
+
                     responseCode = result.code == ExitStatus.Code.OK
                         ? (int)HttpStatusCode.Created
                         : result.code == ExitStatus.Code.BAD_REQUEST
