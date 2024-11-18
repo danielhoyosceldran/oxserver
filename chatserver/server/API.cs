@@ -1,11 +1,7 @@
 ﻿using chatserver.server.APIs;
 using chatserver.utils;
-using log4net.Util;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
-using chatserver.utils;
+using System.Net.Http;
 using System.Text.Json;
 using System.Text;
 
@@ -46,17 +42,23 @@ namespace chatserver.server
                 var response = context.Response;
 
                 // CORS headers
-                response.AddHeader("Access-Control-Allow-Origin", "*");
+                var origin = request.Headers["Origin"];
+                if (!string.IsNullOrEmpty(origin))
+                {
+                    response.AddHeader("Access-Control-Allow-Origin", origin); // Permet l'origen que fa la petició
+                }
                 response.AddHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
                 response.AddHeader("Access-Control-Allow-Headers", "Content-Type");
+                response.AddHeader("Access-Control-Allow-Credentials", "true");
 
                 // TODO: comprovar de quin tipus de request es tracta i enviar-ho a un thread a part per a que es gestioni a part
                 // El thread s'haùrpa de tancar correctament
                 if (request.HttpMethod == "POST")
                 {
+                    // TODO
                     // Aquí pot haber problemes en cas de tenir nulls
                     // no puc simplement fer "return". He de fer el recieve.
-                    string? absolutePath = request.Url?.AbsolutePath;
+                    //string? absolutePath = request.Url?.AbsolutePath;
 
                     var body = request.InputStream;
                     var encoding = request.ContentEncoding;
@@ -66,6 +68,12 @@ namespace chatserver.server
                     Logger.RequestServerLogger.Debug("Client data content length: " + request.ContentLength64);
 
                     string recievedData = reader.ReadToEnd();
+
+                    if (request.ContentLength64 > 0)
+                    {
+                        // TODO
+                        // Hauria de llançar una excepció
+                    }
 
                     reader.Close();
                     body.Close();
@@ -81,6 +89,17 @@ namespace chatserver.server
                             ? (int)HttpStatusCode.BadRequest
                             : (int)HttpStatusCode.InternalServerError;
 
+                        var cookie = new Cookie("session-id", "12345")
+                        {
+                            HttpOnly = true,
+                            Secure = true,
+                            Expires = DateTime.UtcNow.AddDays(1),
+                            Path = "/",
+                            Domain = "localhost"
+                        };
+
+                        response.Headers.Add("Set-Cookie", cookie.ToString());
+
                         response.StatusCode = responseCode;
                         response.ContentType = "application/json";
                         var responseObject = new
@@ -93,15 +112,35 @@ namespace chatserver.server
                         byte[] buffer = Encoding.UTF8.GetBytes(jsonResponse);
                         response.ContentLength64 = buffer.Length;
                         response.OutputStream.Write(buffer, 0, buffer.Length);
-                        response.OutputStream.Close();
                     }
+                }
+                else if (request.HttpMethod == "GET")
+                {
+                    bool userStatus = false;
+
+                    if (request.Cookies.Count > 0)
+                    {
+                        userStatus = request.Cookies[0].Value == "12345" ? true : false;
+                    }
+
+                    response.ContentType = "application/json";
+                    var responseObject = new
+                    {
+                        status = userStatus,
+                    };
+                    string jsonResponse = JsonSerializer.Serialize(responseObject);
+                    byte[] buffer = Encoding.UTF8.GetBytes(jsonResponse);
+                    response.ContentLength64 = buffer.Length;
+                    response.OutputStream.Write(buffer, 0, buffer.Length);
+
                 }
                 else if (request.HttpMethod == "OPTIONS")
                 {
-                    // Tema CORS
                     response.StatusCode = (int)HttpStatusCode.OK;
-                    response.OutputStream.Close();
                 }
+
+                // Enviem resposta
+                response.OutputStream.Close();
 
                 Receive();
             }

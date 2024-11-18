@@ -34,7 +34,7 @@ namespace chatserver.authentication
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
-            // 2. Configura la clau secreta i l’algorisme de signatura
+            // 2. Configura la clau secreta i l’algorisme de signaturawha
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secretKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 

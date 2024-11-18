@@ -14,6 +14,7 @@ namespace chatserver.server.APIs
             var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY");
             if (secretKey != null)
             {
+                // TODO
                 // control this case
             }
             var tokenProvider = new authentication.TokenProvider(secretKey!, 60);
@@ -61,6 +62,7 @@ namespace chatserver.server.APIs
                 };
                 if (ex.Source == "System.Text.Json")
                 {
+                    // TODO
                     // Bad request becouse this expetions means that
                     // the content of the recieved json is not correct
                     ret.status = ExitCodes.BAD_REQUEST;
@@ -88,13 +90,13 @@ namespace chatserver.server.APIs
                     return new ExitStatus
                     {
                         status = ExitCodes.NOT_FOUND,
-                        message = "This user do not exist."
+                        message = "This user does not exist."
                     };
                 }
 
                 return new ExitStatus()
                 {
-                    message = "User logged in succesfuly.",
+                    message = "User singed in succesfuly.",
                 };
             }
             catch (Exception ex)
@@ -106,7 +108,8 @@ namespace chatserver.server.APIs
                 };
                 if (ex.Source == "System.Text.Json")
                 {
-                    // BAd request becouse this expetions means that
+                    // TODO
+                    // Bad request becouse this expetions means that
                     // the content of the recieved json is not correct
                     ret.status = ExitCodes.BAD_REQUEST;
                 }
