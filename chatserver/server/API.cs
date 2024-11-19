@@ -131,16 +131,8 @@ namespace chatserver.server
                     _ => (int)HttpStatusCode.InternalServerError
                 };
 
-                var cookie = new Cookie("session-id", "12345")
-                {
-                    HttpOnly = true,
-                    Secure = false, // Canvia a true en producció si fas servir HTTPS
-                    Expires = DateTime.UtcNow.AddDays(1),
-                    Path = "/",
-                    Domain = "localhost"
-                };
-
-                response.Headers.Add("Set-Cookie", cookie.ToString());
+                var cookieValue = $"session-id=12345; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddDays(1):R}; Secure={false}; Domain=localhost";
+                response.Headers.Add("Set-Cookie", cookieValue);
 
                 response.StatusCode = responseCode;
                 var responseObject = new
@@ -168,8 +160,8 @@ namespace chatserver.server
             {
                 ExitStatus result = action switch
                 {
-                    "signup_user" => await usersAPI.signUpUser(recievedData),
-                    "signin_user" => await usersAPI.signInUser(recievedData),
+                    "signup" => await usersAPI.signUpUser(recievedData),
+                    "signin" => await usersAPI.signInUser(recievedData),
                     _ => throw new ArgumentException("Invalid action")
                 };
 
