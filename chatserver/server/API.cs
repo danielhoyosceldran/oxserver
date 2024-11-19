@@ -1,7 +1,6 @@
 ﻿using chatserver.server.APIs;
 using chatserver.utils;
 using System.Net;
-using System.Net.Http;
 using System.Text.Json;
 using System.Text;
 
@@ -15,9 +14,9 @@ namespace chatserver.server
         private static UsersHandler usersAPI = new UsersHandler();
 
         public static async Task start()
-        {   
+        {
             _listener = new HttpListener();
-            _listener.Prefixes.Add("http://*:" + Port.ToString() + "/");
+            _listener.Prefixes.Add($"http://*:{Port}/"); // Canvi a interpolació
             _listener.Start();
             Receive();
         }
@@ -34,139 +33,145 @@ namespace chatserver.server
 
         private async static void ListenerCallback(IAsyncResult result)
         {
-            if (_listener.IsListening)
+            if (!_listener.IsListening) return;
+
+            var context = _listener.EndGetContext(result);
+            var request = context.Request;
+            var response = context.Response;
+
+            // Afegim les capçaleres CORS
+            addCorsHeaders(response, request);
+
+            try
             {
-                var context = _listener.EndGetContext(result);
-                var request = context.Request;
-
-                var response = context.Response;
-
-                // CORS headers
-                var origin = request.Headers["Origin"];
-                if (!string.IsNullOrEmpty(origin))
-                {
-                    response.AddHeader("Access-Control-Allow-Origin", origin); // Permet l'origen que fa la petició
-                }
-                response.AddHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-                response.AddHeader("Access-Control-Allow-Headers", "Content-Type");
-                response.AddHeader("Access-Control-Allow-Credentials", "true");
-
-                // TODO: comprovar de quin tipus de request es tracta i enviar-ho a un thread a part per a que es gestioni a part
-                // El thread s'haùrpa de tancar correctament
                 if (request.HttpMethod == "POST")
                 {
-                    // TODO
-                    // Aquí pot haber problemes en cas de tenir nulls
-                    // no puc simplement fer "return". He de fer el recieve.
-                    //string? absolutePath = request.Url?.AbsolutePath;
-
-                    var body = request.InputStream;
-                    var encoding = request.ContentEncoding;
-                    var reader = new StreamReader(body, encoding);
-
-                    // TODO: S'ha de comprovar que ens estan enviant un body. Sinó es respon directament que falta el cos.
-                    Logger.RequestServerLogger.Debug("Client data content length: " + request.ContentLength64);
-
-                    string recievedData = reader.ReadToEnd();
-
-                    if (request.ContentLength64 > 0)
-                    {
-                        // TODO
-                        // Hauria de llançar una excepció
-                    }
-
-                    reader.Close();
-                    body.Close();
-
-                    List<string> requestRoutes = Utils.getUrlRoutes(url: request.Url!);
-                    if (requestRoutes[0] == "sign_users")
-                    {
-                        ExitStatus signResult = await handleSignRequests(recievedData, requestRoutes[1]);
-
-                        int responseCode = signResult.status == ExitCodes.OK
-                            ? (int)HttpStatusCode.OK
-                            : signResult.status == ExitCodes.BAD_REQUEST
-                            ? (int)HttpStatusCode.BadRequest
-                            : (int)HttpStatusCode.InternalServerError;
-
-                        var cookie = new Cookie("session-id", "12345")
-                        {
-                            HttpOnly = true,
-                            Secure = true,
-                            Expires = DateTime.UtcNow.AddDays(1),
-                            Path = "/",
-                            Domain = "localhost"
-                        };
-
-                        response.Headers.Add("Set-Cookie", cookie.ToString());
-
-                        response.StatusCode = responseCode;
-                        response.ContentType = "application/json";
-                        var responseObject = new
-                        {
-                            message = signResult.message,
-                            status = "success",
-                            data = new { /* altres dades aquí */ }
-                        };
-                        string jsonResponse = JsonSerializer.Serialize(responseObject);
-                        byte[] buffer = Encoding.UTF8.GetBytes(jsonResponse);
-                        response.ContentLength64 = buffer.Length;
-                        response.OutputStream.Write(buffer, 0, buffer.Length);
-                    }
+                    await handlePostRequest(request, response);
                 }
                 else if (request.HttpMethod == "GET")
                 {
-                    bool userStatus = false;
-
-                    if (request.Cookies.Count > 0)
-                    {
-                        userStatus = request.Cookies[0].Value == "12345" ? true : false;
-                    }
-
-                    response.ContentType = "application/json";
-                    var responseObject = new
-                    {
-                        status = userStatus,
-                    };
-                    string jsonResponse = JsonSerializer.Serialize(responseObject);
-                    byte[] buffer = Encoding.UTF8.GetBytes(jsonResponse);
-                    response.ContentLength64 = buffer.Length;
-                    response.OutputStream.Write(buffer, 0, buffer.Length);
-
+                    await handleGetRequest(request, response);
                 }
                 else if (request.HttpMethod == "OPTIONS")
                 {
                     response.StatusCode = (int)HttpStatusCode.OK;
                 }
-
-                // Enviem resposta
-                response.OutputStream.Close();
-
-                Receive();
+                else
+                {
+                    response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+                }
             }
+            catch (Exception ex)
+            {
+                // Afegim informació d'error a la resposta
+                response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                byte[] errorBytes = Encoding.UTF8.GetBytes($"Error: {ex.Message}");
+                response.OutputStream.Write(errorBytes, 0, errorBytes.Length);
+            }
+            finally
+            {
+                response.OutputStream.Close(); // Tanca el flux de la resposta
+                Receive(); // Continua escoltant noves peticions
+            }
+        }
+
+        private static async Task handleGetRequest(HttpListenerRequest request, HttpListenerResponse response)
+        {
+            bool userStatus = false;
+
+            // Millora: Comprovem si existeix una cookie específica
+            var sessionCookie = request.Cookies["session-id"];
+            if (sessionCookie != null)
+            {
+                userStatus = sessionCookie.Value == "12345";
+            }
+
+            response.StatusCode = (int)HttpStatusCode.OK;
+            var responseObject = new
+            {
+                status = userStatus,
+            };
+            string jsonResponse = JsonSerializer.Serialize(responseObject);
+
+            sendJsonResponse(response, jsonResponse);
+        }
+
+        private static async Task handlePostRequest(HttpListenerRequest request, HttpListenerResponse response)
+        {
+            // Comprovem que hi hagi un cos a la petició
+            if (request.ContentLength64 == 0)
+            {
+                response.StatusCode = (int)HttpStatusCode.BadRequest;
+                var errorResponse = new { error = "Request body is missing" };
+                sendJsonResponse(response, JsonSerializer.Serialize(errorResponse));
+                return;
+            }
+
+            // Llegim el cos de la petició
+            using var reader = new StreamReader(request.InputStream, request.ContentEncoding);
+            string recievedData = reader.ReadToEnd();
+
+            List<string> requestRoutes = Utils.getUrlRoutes(url: request.Url!);
+            if (requestRoutes.Count == 0)
+            {
+                response.StatusCode = (int)HttpStatusCode.NotFound;
+                var errorResponse = new { error = "No route specified" };
+                sendJsonResponse(response, JsonSerializer.Serialize(errorResponse));
+                return;
+            }
+
+            if (requestRoutes[0] == "sign_users")
+            {
+                ExitStatus signResult = await handleSignRequests(recievedData, requestRoutes[1]);
+
+                int responseCode = signResult.status switch
+                {
+                    ExitCodes.OK => (int)HttpStatusCode.OK,
+                    ExitCodes.BAD_REQUEST => (int)HttpStatusCode.BadRequest,
+                    _ => (int)HttpStatusCode.InternalServerError
+                };
+
+                var cookie = new Cookie("session-id", "12345")
+                {
+                    HttpOnly = true,
+                    Secure = false, // Canvia a true en producció si fas servir HTTPS
+                    Expires = DateTime.UtcNow.AddDays(1),
+                    Path = "/",
+                    Domain = "localhost"
+                };
+
+                response.Headers.Add("Set-Cookie", cookie.ToString());
+
+                response.StatusCode = responseCode;
+                var responseObject = new
+                {
+                    message = signResult.message,
+                    status = "success",
+                    data = signResult.result
+                };
+                sendJsonResponse(response, JsonSerializer.Serialize(responseObject));
+            }
+        }
+
+        private static void sendJsonResponse(HttpListenerResponse response, string jsonData)
+        {
+            response.ContentType = "application/json";
+            byte[] buffer = Encoding.UTF8.GetBytes(jsonData);
+            response.ContentLength64 = buffer.Length;
+            response.OutputStream.Write(buffer, 0, buffer.Length);
         }
 
         private static async Task<ExitStatus> handleSignRequests(string recievedData, string action)
         {
-            int responseCode = (int)HttpStatusCode.OK;
-            string responseMessage = "";
             ExitStatus exitStatus = new ExitStatus();
             try
             {
-                ExitStatus result;
-
-                if (action == "signup_user")
+                ExitStatus result = action switch
                 {
-                    result = await usersAPI.signUpUser(recievedData);
-                }
-                else if (action == "signin_user")
-                {
-                    result = await usersAPI.signInUser(recievedData);
-                }
-                else
-                {
-                    throw new Exception(CustomExceptionCdes.BAD_REQUESTS.ToString());
-                }
+                    "signup_user" => await usersAPI.signUpUser(recievedData),
+                    "signin_user" => await usersAPI.signInUser(recievedData),
+                    _ => throw new ArgumentException("Invalid action")
+                };
 
                 exitStatus.status = result.status;
                 exitStatus.message = result.message;
@@ -174,10 +179,23 @@ namespace chatserver.server
             }
             catch (Exception ex)
             {
-                responseCode = (int)HttpStatusCode.Conflict;
+                exitStatus.status = ExitCodes.ERROR;
+                exitStatus.message = ex.Message;
             }
 
             return exitStatus;
+        }
+
+        private static void addCorsHeaders(HttpListenerResponse response, HttpListenerRequest request)
+        {
+            var origin = request.Headers["Origin"];
+            if (!string.IsNullOrEmpty(origin))
+            {
+                response.AddHeader("Access-Control-Allow-Origin", origin);
+            }
+            response.AddHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+            response.AddHeader("Access-Control-Allow-Headers", "Content-Type");
+            response.AddHeader("Access-Control-Allow-Credentials", "true");
         }
     }
 }

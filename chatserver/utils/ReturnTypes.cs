@@ -46,5 +46,6 @@
     public enum CustomExceptionCdes : ushort
     {
         BAD_REQUESTS = 400,
+        API_ERROR = 0
     }
 }
