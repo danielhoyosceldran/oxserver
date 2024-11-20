@@ -160,8 +160,8 @@ namespace chatserver.server
             {
                 ExitStatus result = action switch
                 {
-                    "signup" => await usersAPI.signUpUser(recievedData),
-                    "signin" => await usersAPI.signInUser(recievedData),
+                    "signUp" => await usersAPI.signUpUser(recievedData),
+                    "signIn" => await usersAPI.signInUser(recievedData),
                     _ => throw new ArgumentException("Invalid action")
                 };
 
