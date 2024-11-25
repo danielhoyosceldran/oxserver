@@ -52,6 +52,10 @@ namespace chatserver.server
                 {
                     await handleGetRequest(request, response);
                 }
+                else if (request.HttpMethod == "PUT")
+                {
+                    await handlePutRequest(request, response);
+                }
                 else if (request.HttpMethod == "OPTIONS")
                 {
                     response.StatusCode = (int)HttpStatusCode.OK;
@@ -75,8 +79,15 @@ namespace chatserver.server
             }
         }
 
+        private static async Task handlePutRequest(HttpListenerRequest request, HttpListenerResponse response)
+        {
+            Console.WriteLine("hola");
+        }
+
         private static async Task handleGetRequest(HttpListenerRequest request, HttpListenerResponse response)
         {
+            Logger.ConsoleLogger.Debug("A user has requested access");
+            Logger.ApiLogger.Debug("A user has requested access");
             bool userStatus = false;
 
             // Millora: Comprovem si existeix una cookie específica
@@ -185,7 +196,7 @@ namespace chatserver.server
             {
                 response.AddHeader("Access-Control-Allow-Origin", origin);
             }
-            response.AddHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+            response.AddHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
             response.AddHeader("Access-Control-Allow-Headers", "Content-Type");
             response.AddHeader("Access-Control-Allow-Credentials", "true");
         }

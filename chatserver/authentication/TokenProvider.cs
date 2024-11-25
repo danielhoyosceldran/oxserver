@@ -29,10 +29,10 @@ namespace chatserver.authentication
             // 1. Configura els "claims" (informació del token)
             var claims = new[]
             {
-            new Claim(JwtRegisteredClaimNames.Sub, userId),
-            new Claim(JwtRegisteredClaimNames.UniqueName, username),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
+                new Claim(JwtRegisteredClaimNames.Sub, userId),
+                new Claim(JwtRegisteredClaimNames.UniqueName, username),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            };
 
             // 2. Configura la clau secreta i l’algorisme de signaturawha
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secretKey));

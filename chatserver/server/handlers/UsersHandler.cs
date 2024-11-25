@@ -139,5 +139,12 @@ namespace chatserver.server.APIs
                 };
             }
         }
+
+        public async Task<ExitStatus> getContacts(string username)
+        {
+            return new ExitStatus
+            {
+            };
+        }
     }
 }
