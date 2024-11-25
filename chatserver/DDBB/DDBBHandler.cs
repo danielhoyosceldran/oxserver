@@ -75,5 +75,46 @@ namespace chatserver.DDBB
                 };
             }
         }
+
+        public async Task<ExitStatus> delete(string collectionName, string key, string value)
+        {
+            try
+            {
+                Logger.DataBaseLogger.Debug($"[delete] - collection: {collectionName}, key: {key}, value: {value}");
+                Logger.ConsoleLogger.Debug($"[delete] - collection: {collectionName}, key: {key}, value: {value}");
+
+                var database = client.GetDatabase(DATA_BASE_NAME);
+                var collection = database.GetCollection<BsonDocument>(collectionName);
+
+                var filter = Builders<BsonDocument>.Filter.Eq(key, value);
+                var result = await collection.DeleteOneAsync(filter);
+
+                if (result.DeletedCount > 0)
+                {
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.OK,
+                        message = $"Document with {key}={value} deleted successfully."
+                    };
+                }
+                else
+                {
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.NOT_FOUND,
+                        message = $"No document found with {key}={value}."
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                return new ExitStatus
+                {
+                    status = ExitCodes.EXCEPTION,
+                    exception = ex.Message
+                };
+            }
+        }
+
     }
 }

@@ -4,6 +4,7 @@ using System.Net;
 using System.Text.Json;
 using System.Text;
 using chatserver.authentication;
+using chatserver.DDBB;
 
 namespace chatserver.server
 {
@@ -82,7 +83,21 @@ namespace chatserver.server
 
         private static async Task handlePutRequest(HttpListenerRequest request, HttpListenerResponse response)
         {
-            Console.WriteLine("hola");
+            List<string> requestRoutes = Utils.getUrlRoutes(url: request.Url!);
+            if (requestRoutes.Count <= 0)
+            {
+                response.StatusCode = (int)HttpStatusCode.BadRequest;
+                return;
+            }
+
+            if (requestRoutes[0] == "signout")
+            {
+                var sessionCookie = request.Cookies["session-id"];
+                if (sessionCookie != null)
+                {
+                    ExitStatus result = await SessionHandler.signOutHandler(sessionCookie.Value);
+                }
+            }
         }
 
         private static async Task handleGetRequest(HttpListenerRequest request, HttpListenerResponse response)
@@ -155,7 +170,11 @@ namespace chatserver.server
                     _ => (int)HttpStatusCode.InternalServerError
                 };
 
-                var cookieValue = $"session-id=12345; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddDays(1):R}; Secure={false}; Domain=localhost";
+                int sessionId = SessionHandler.getSessionsCounter();
+                DDBBHandler dDBBHandler = DDBBHandler.getInstance();
+                await dDBBHandler.write("sessions", JsonDocument.Parse($@"{{ ""sessionId"": ""{sessionId}"" }}").RootElement);
+
+                var cookieValue = $"session-id={sessionId}; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddDays(1):R}; Secure={false}; Domain=localhost";
                 response.Headers.Add("Set-Cookie", cookieValue);
 
                 response.StatusCode = responseCode;
