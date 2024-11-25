@@ -3,6 +3,7 @@ using chatserver.utils;
 using System.Net;
 using System.Text.Json;
 using System.Text;
+using chatserver.authentication;
 
 namespace chatserver.server
 {
@@ -86,25 +87,37 @@ namespace chatserver.server
 
         private static async Task handleGetRequest(HttpListenerRequest request, HttpListenerResponse response)
         {
-            Logger.ConsoleLogger.Debug("A user has requested access");
-            Logger.ApiLogger.Debug("A user has requested access");
-            bool userStatus = false;
 
-            // Millora: Comprovem si existeix una cookie específica
-            var sessionCookie = request.Cookies["session-id"];
-            if (sessionCookie != null)
+            List<string> requestRoutes = Utils.getUrlRoutes(url: request.Url!);
+
+            if (requestRoutes.Count <= 0)
             {
-                userStatus = sessionCookie.Value == "12345";
+                response.StatusCode = (int)HttpStatusCode.BadRequest;
+                return;
             }
-
-            response.StatusCode = (int)HttpStatusCode.OK;
-            var responseObject = new
+            
+            if (requestRoutes[0] == "im_i_logged_in")
             {
-                status = userStatus,
-            };
-            string jsonResponse = JsonSerializer.Serialize(responseObject);
+                Logger.ConsoleLogger.Debug("A user has requested access");
+                Logger.ApiLogger.Debug("A user has requested access");
+                bool userStatus = false;
 
-            sendJsonResponse(response, jsonResponse);
+                var sessionCookie = request.Cookies["session-id"];
+                if (sessionCookie != null)
+                {
+                    ExitStatus result = await SessionHandler.isSessionActive(sessionCookie.Value);
+                    if (result.status == ExitCodes.OK) userStatus = (bool)result.result;
+                }   
+
+                response.StatusCode = (int)HttpStatusCode.OK;
+                var responseObject = new
+                {
+                    status = userStatus,
+                };
+                string jsonResponse = JsonSerializer.Serialize(responseObject);
+
+                sendJsonResponse(response, jsonResponse);
+            }
         }
 
         private static async Task handlePostRequest(HttpListenerRequest request, HttpListenerResponse response)

@@ -10,7 +10,11 @@ namespace chatserver.authentication
 {
     internal class SessionHandler
     {
-        public async Task<ExitStatus> isSessionActive(string sessionId)
+        private static SessionHandler instance = new SessionHandler();
+        private SessionHandler() { }
+        public static SessionHandler Instance { get { return instance; } }
+
+        public async static Task<ExitStatus> isSessionActive(string sessionId)
         {
             try
             {
@@ -21,6 +25,7 @@ namespace chatserver.authentication
                 {
                     status = result.status,
                     message = result.message,
+                    result = result.status == ExitCodes.OK ? true : false
                 };
             }
             catch (Exception ex)
