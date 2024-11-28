@@ -6,6 +6,8 @@ using System.Text;
 using chatserver.authentication;
 using chatserver.DDBB;
 using MongoDB.Driver;
+using DnsClient;
+using System.Runtime.Versioning;
 
 namespace chatserver.server
 {
@@ -111,49 +113,109 @@ namespace chatserver.server
 
         private static async Task<ExitStatus> handleAccess(HttpListenerRequest request, HttpListenerResponse response, List<string> resources)
         {
-            // Exceptions controled in the ListenerCallback function
-
-            string body = "";
-            if (request.HttpMethod == "POST")
-            {
-                if (request.ContentLength64 == 0)
+            ExitStatus result = new ExitStatus();
+            if (resources.Count >= 2)
+            { 
+                string action = resources[1];
+                result = action switch
                 {
-                    response.StatusCode = (int)HttpStatusCode.BadRequest;
-                    var errorResponse = new { error = "Request body is missing" };
-                    sendJsonResponse(response, JsonSerializer.Serialize(errorResponse));
-                    return new ExitStatus()
-                    {
-                        status = ExitCodes.ERROR,
-                    };
-                }
-                else
-                {
-                    using var reader = new StreamReader(request.InputStream, request.ContentEncoding);
-                    body = reader.ReadToEnd();
-                }
+                    "signin" => await handleSignin(request, response),
+                    "signup" => await handleSignup(request, response),
+                    "logout" => await handleSignout(request),
+                    _ => new ExitStatus() // provisional
+                };
             }
-            
 
-            ExitStatus result = resources[0] switch
-            {
-                "signin" => ,
-                "signup" => ,
-                "logout" => await handleSignout(request),
-                _ => new ExitStatus() // provisional
-            };
-
+            // TODO
+            // S'ha de gestionar el cas en el qual es demana per accés "GET /access"
 
             return result; // provisional
         }
 
-        private static async Task handleSignout(HttpListenerRequest request)
+        private static ExitStatus checkForBody(HttpListenerRequest request, HttpListenerResponse response)
         {
-            var sessionCookie = request.Cookies["session-id"];
-            if (sessionCookie != null)
+            if(request.HttpMethod != "POST" && request.HttpMethod != "PUT" || request.ContentLength64 == 0)
             {
-                ExitStatus result = await SessionHandler.signOutHandler(sessionCookie.Value);
+                response.StatusCode = (int)HttpStatusCode.BadRequest;
+                var errorResponse = new { error = "Request body is missing" };
+                sendJsonResponse(response, JsonSerializer.Serialize(errorResponse));
+                return new ExitStatus()
+                {
+                    status = ExitCodes.ERROR,
+                    message = "Should have body and should be POST or PUT."
+                };
+            }
+            else
+            {
+                using var reader = new StreamReader(request.InputStream, request.ContentEncoding);
+                return new ExitStatus()
+                {
+                    status = ExitCodes.OK,
+                    result = reader.ReadToEnd()
+                };
             }
         }
+        
+        private static async Task<ExitStatus> handleSignin(HttpListenerRequest request, HttpListenerResponse response)
+        {
+            ExitStatus result = checkForBody(request, response);
+            if (result.status == ExitCodes.OK)
+            {
+                result = await usersAPI.signInUser((string)result.result!);
+                if (result.status != ExitCodes.OK)
+                {
+                    throw new Exception(result.message);
+                }
+                // prepara cookies amb sessió
+                //      guarda la cookie a la bbdd
+                int sessionId = SessionHandler.getSessionsCounter();
+                DDBBHandler dDBBHandler = DDBBHandler.getInstance();
+                await dDBBHandler.write("sessions", JsonDocument.Parse($@"{{ ""sessionId"": ""{sessionId}"" }}").RootElement);
+                //      configura la cookie
+                var cookieValue = $"session-id={sessionId}; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddDays(1):R}; Secure={false}; Domain=localhost";
+                response.Headers.Add("Set-Cookie", cookieValue);
+
+                int responseCode = result.status switch
+                {
+                    ExitCodes.OK => (int)HttpStatusCode.OK,
+                    ExitCodes.BAD_REQUEST => (int)HttpStatusCode.BadRequest,
+                    _ => (int)HttpStatusCode.InternalServerError
+                };
+
+                // prepara resposta
+                response.StatusCode = responseCode;
+                var responseObject = new
+                {
+                    message = result.message,
+                    status = "success",
+                    data = result.result
+                };
+                sendJsonResponse(response, JsonSerializer.Serialize(responseObject));
+            }
+            else
+            {
+                Logger.ApiLogger.Error(result.message);
+            }
+
+            return result; // provisional
+        }
+
+        private static async Task<ExitStatus> handleSignup(HttpListenerRequest request, HttpListenerResponse response)
+        {
+            return new ExitStatus(); // provisional
+        }
+
+        private static async Task<ExitStatus> handleSignout(HttpListenerRequest request)
+        {
+            var sessionCookie = request.Cookies["session-id"];
+            ExitStatus result = new ExitStatus();
+            if (sessionCookie != null)
+            {
+                result = await SessionHandler.signOutHandler(sessionCookie.Value);
+            }
+            return result;
+        }
+
 
         private static void sendJsonResponse(HttpListenerResponse response, string jsonData)
         {
@@ -163,6 +225,7 @@ namespace chatserver.server
             response.OutputStream.Write(buffer, 0, buffer.Length);
         }
 
+        // deprecated
         private static async Task<ExitStatus> handleSignRequests(string recievedData, string action)
         {
             ExitStatus exitStatus = new ExitStatus();
@@ -292,13 +355,16 @@ namespace chatserver.server
                     _ => (int)HttpStatusCode.InternalServerError
                 };
 
+                // prepara cookies amb sessió
+                //      guarda la cookie a la bbdd
                 int sessionId = SessionHandler.getSessionsCounter();
                 DDBBHandler dDBBHandler = DDBBHandler.getInstance();
                 await dDBBHandler.write("sessions", JsonDocument.Parse($@"{{ ""sessionId"": ""{sessionId}"" }}").RootElement);
-
+                //      configura la cookie
                 var cookieValue = $"session-id={sessionId}; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddDays(1):R}; Secure={false}; Domain=localhost";
                 response.Headers.Add("Set-Cookie", cookieValue);
 
+                // prepara resposta
                 response.StatusCode = responseCode;
                 var responseObject = new
                 {
