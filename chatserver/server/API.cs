@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text;
 using chatserver.authentication;
 using chatserver.DDBB;
+using MongoDB.Driver;
 
 namespace chatserver.server
 {
@@ -46,7 +47,27 @@ namespace chatserver.server
 
             try
             {
-                if (request.HttpMethod == "POST")
+                if (request.HttpMethod == "OPTIONS")
+                {
+                    response.StatusCode = (int)HttpStatusCode.OK;
+                    return;
+                }
+
+                List<string> resources = Utils.getUrlRoutes(url: request.Url!);
+
+                if (resources != null)
+                {
+                    // We should evaluate the return
+                    _ = resources[0] switch
+                    {
+                        "access" => await handleAccess(request, response, resources),
+                        _ => notFoundResponse(response)
+                    };
+                }
+
+                // deprecated
+                /*
+                 if (request.HttpMethod == "POST")
                 {
                     await handlePostRequest(request, response);
                 }
@@ -66,6 +87,7 @@ namespace chatserver.server
                 {
                     response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
                 }
+                 */
             }
             catch (Exception ex)
             {
@@ -81,6 +103,104 @@ namespace chatserver.server
             }
         }
 
+        private static ExitStatus notFoundResponse(HttpListenerResponse response)
+        {
+            response.StatusCode = (int)HttpStatusCode.NotFound;
+            return new ExitStatus();
+        }
+
+        private static async Task<ExitStatus> handleAccess(HttpListenerRequest request, HttpListenerResponse response, List<string> resources)
+        {
+            // Exceptions controled in the ListenerCallback function
+
+            string body = "";
+            if (request.HttpMethod == "POST")
+            {
+                if (request.ContentLength64 == 0)
+                {
+                    response.StatusCode = (int)HttpStatusCode.BadRequest;
+                    var errorResponse = new { error = "Request body is missing" };
+                    sendJsonResponse(response, JsonSerializer.Serialize(errorResponse));
+                    return new ExitStatus()
+                    {
+                        status = ExitCodes.ERROR,
+                    };
+                }
+                else
+                {
+                    using var reader = new StreamReader(request.InputStream, request.ContentEncoding);
+                    body = reader.ReadToEnd();
+                }
+            }
+            
+
+            ExitStatus result = resources[0] switch
+            {
+                "signin" => ,
+                "signup" => ,
+                "logout" => await handleSignout(request),
+                _ => new ExitStatus() // provisional
+            };
+
+
+            return result; // provisional
+        }
+
+        private static async Task handleSignout(HttpListenerRequest request)
+        {
+            var sessionCookie = request.Cookies["session-id"];
+            if (sessionCookie != null)
+            {
+                ExitStatus result = await SessionHandler.signOutHandler(sessionCookie.Value);
+            }
+        }
+
+        private static void sendJsonResponse(HttpListenerResponse response, string jsonData)
+        {
+            response.ContentType = "application/json";
+            byte[] buffer = Encoding.UTF8.GetBytes(jsonData);
+            response.ContentLength64 = buffer.Length;
+            response.OutputStream.Write(buffer, 0, buffer.Length);
+        }
+
+        private static async Task<ExitStatus> handleSignRequests(string recievedData, string action)
+        {
+            ExitStatus exitStatus = new ExitStatus();
+            try
+            {
+                ExitStatus result = action switch
+                {
+                    "signUp" => await usersAPI.signUpUser(recievedData),
+                    "signIn" => await usersAPI.signInUser(recievedData),
+                    _ => throw new ArgumentException("Invalid action")
+                };
+
+                exitStatus.status = result.status;
+                exitStatus.message = result.message;
+                exitStatus.result = result.result;
+            }
+            catch (Exception ex)
+            {
+                exitStatus.status = ExitCodes.ERROR;
+                exitStatus.message = ex.Message;
+            }
+
+            return exitStatus;
+        }
+
+        private static void addCorsHeaders(HttpListenerResponse response, HttpListenerRequest request)
+        {
+            var origin = request.Headers["Origin"];
+            if (!string.IsNullOrEmpty(origin))
+            {
+                response.AddHeader("Access-Control-Allow-Origin", origin);
+            }
+            response.AddHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS");
+            response.AddHeader("Access-Control-Allow-Headers", "Content-Type");
+            response.AddHeader("Access-Control-Allow-Credentials", "true");
+        }
+        
+        // deprecated
         private static async Task handlePutRequest(HttpListenerRequest request, HttpListenerResponse response)
         {
             List<string> requestRoutes = Utils.getUrlRoutes(url: request.Url!);
@@ -100,6 +220,7 @@ namespace chatserver.server
             }
         }
 
+        // deprecated
         private static async Task handleGetRequest(HttpListenerRequest request, HttpListenerResponse response)
         {
 
@@ -135,6 +256,7 @@ namespace chatserver.server
             }
         }
 
+        // deprecated
         private static async Task handlePostRequest(HttpListenerRequest request, HttpListenerResponse response)
         {
             // Comprovem que hi hagi un cos a la petició
@@ -186,51 +308,6 @@ namespace chatserver.server
                 };
                 sendJsonResponse(response, JsonSerializer.Serialize(responseObject));
             }
-        }
-
-        private static void sendJsonResponse(HttpListenerResponse response, string jsonData)
-        {
-            response.ContentType = "application/json";
-            byte[] buffer = Encoding.UTF8.GetBytes(jsonData);
-            response.ContentLength64 = buffer.Length;
-            response.OutputStream.Write(buffer, 0, buffer.Length);
-        }
-
-        private static async Task<ExitStatus> handleSignRequests(string recievedData, string action)
-        {
-            ExitStatus exitStatus = new ExitStatus();
-            try
-            {
-                ExitStatus result = action switch
-                {
-                    "signUp" => await usersAPI.signUpUser(recievedData),
-                    "signIn" => await usersAPI.signInUser(recievedData),
-                    _ => throw new ArgumentException("Invalid action")
-                };
-
-                exitStatus.status = result.status;
-                exitStatus.message = result.message;
-                exitStatus.result = result.result;
-            }
-            catch (Exception ex)
-            {
-                exitStatus.status = ExitCodes.ERROR;
-                exitStatus.message = ex.Message;
-            }
-
-            return exitStatus;
-        }
-
-        private static void addCorsHeaders(HttpListenerResponse response, HttpListenerRequest request)
-        {
-            var origin = request.Headers["Origin"];
-            if (!string.IsNullOrEmpty(origin))
-            {
-                response.AddHeader("Access-Control-Allow-Origin", origin);
-            }
-            response.AddHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
-            response.AddHeader("Access-Control-Allow-Headers", "Content-Type");
-            response.AddHeader("Access-Control-Allow-Credentials", "true");
         }
     }
 }
