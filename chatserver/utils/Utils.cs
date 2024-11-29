@@ -8,7 +8,7 @@ namespace chatserver.utils
 {
     public static class Utils
     {
-        public static List<string> getUrlRoutes(Uri url)
+        public static List<string> GetUrlRoutes(Uri url)
         {
             List<string>? segments = url.Segments.Skip(1).Select(s => s.Trim('/')).ToList();
             return segments;

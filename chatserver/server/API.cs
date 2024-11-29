@@ -5,9 +5,6 @@ using System.Text.Json;
 using System.Text;
 using chatserver.authentication;
 using chatserver.DDBB;
-using MongoDB.Driver;
-using DnsClient;
-using System.Runtime.Versioning;
 
 namespace chatserver.server
 {
@@ -15,28 +12,24 @@ namespace chatserver.server
     {
         private static int Port = 8081;
 
-        private static HttpListener _listener;
+        private static HttpListener _listener = new HttpListener();
         private static UsersHandler usersAPI = new UsersHandler();
 
-        public static async Task start()
+        public static async Task Start()
         {
-            _listener = new HttpListener();
-            _listener.Prefixes.Add($"http://*:{Port}/"); // Canvi a interpolació
+            _listener.Prefixes.Add($"http://*:{Port}/");
             _listener.Start();
-            Receive();
+            Listen();
         }
 
-        public void Stop()
+        public static void Stop() => _listener.Stop();
+
+        private static void Listen()
         {
-            _listener.Stop();
+            _listener.BeginGetContext(new AsyncCallback(HandleRequest), _listener);
         }
 
-        private static void Receive()
-        {
-            _listener.BeginGetContext(new AsyncCallback(ListenerCallback), _listener);
-        }
-
-        private async static void ListenerCallback(IAsyncResult result)
+        private async static void HandleRequest(IAsyncResult result)
         {
             if (!_listener.IsListening) return;
 
@@ -44,180 +37,148 @@ namespace chatserver.server
             var request = context.Request;
             var response = context.Response;
 
-            // Afegim les capçaleres CORS
-            addCorsHeaders(response, request);
-
             try
             {
+                AddCorsHeaders(response, request);
+
                 if (request.HttpMethod == "OPTIONS")
-                {
-                    response.StatusCode = (int)HttpStatusCode.OK;
-                    return;
-                }
-
-                List<string> resources = Utils.getUrlRoutes(url: request.Url!);
-
-                if (resources != null)
-                {
-                    // We should evaluate the return
-                    _ = resources[0] switch
-                    {
-                        "access" => await handleAccess(request, response, resources),
-                        _ => notFoundResponse(response)
-                    };
-                }
-
-                // deprecated
-                /*
-                 if (request.HttpMethod == "POST")
-                {
-                    await handlePostRequest(request, response);
-                }
-                else if (request.HttpMethod == "GET")
-                {
-                    await handleGetRequest(request, response);
-                }
-                else if (request.HttpMethod == "PUT")
-                {
-                    await handlePutRequest(request, response);
-                }
-                else if (request.HttpMethod == "OPTIONS")
                 {
                     response.StatusCode = (int)HttpStatusCode.OK;
                 }
                 else
                 {
-                    response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+                    var resources = Utils.GetUrlRoutes(request.Url!);
+                    if (resources == null || resources.Count == 0)
+                    {
+                        NotFoundResponse(response);
+                    }
+                    else
+                    {
+                        await HandleRoute(request, response, resources);
+                    }
                 }
-                 */
             }
             catch (Exception ex)
             {
-                // Afegim informació d'error a la resposta
                 response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                byte[] errorBytes = Encoding.UTF8.GetBytes($"Error: {ex.Message}");
-                response.OutputStream.Write(errorBytes, 0, errorBytes.Length);
+                SendJsonResponse(response, JsonSerializer.Serialize(new { error = ex.Message }));
             }
             finally
             {
-                response.OutputStream.Close(); // Tanca el flux de la resposta
-                Receive(); // Continua escoltant noves peticions
+                response.OutputStream.Close();
+                Listen();
             }
         }
 
-        private static ExitStatus notFoundResponse(HttpListenerResponse response)
+        private static async Task HandleRoute(HttpListenerRequest request, HttpListenerResponse response, List<string> resources)
         {
-            response.StatusCode = (int)HttpStatusCode.NotFound;
-            return new ExitStatus();
+            var result = resources[0] switch
+            {
+                "access" => await HandleAccess(request, response, resources.Skip(1).ToList()),
+                _ => NotFoundResponse(response)
+            };
         }
 
-        private static async Task<ExitStatus> handleAccess(HttpListenerRequest request, HttpListenerResponse response, List<string> resources)
+        private static async Task<ExitStatus> HandleAccess(HttpListenerRequest request, HttpListenerResponse response, List<string> resources)
         {
-            ExitStatus result = new ExitStatus();
-            if (resources.Count >= 2)
-            { 
-                string action = resources[1];
-                result = action switch
-                {
-                    "signin" => await handleSignin(request, response),
-                    "signup" => await handleSignup(request, response),
-                    "logout" => await handleSignout(request),
-                    _ => new ExitStatus() // provisional
-                };
+            if (resources.Count == 0)
+            {
+                return await HandleAccessStatus(request, response);
             }
 
+            var action = resources[0];
+            return action switch
+            {
+                "signin" => await HandleSign(request, response, "signin"),
+                "signup" => await HandleSign(request, response, "signup"),
+                "signout" => await HandleSignOut(request),
+                _ => NotFoundResponse(response)
+            };
+        }
+
+        private static async Task<ExitStatus> HandleAccessStatus(HttpListenerRequest request, HttpListenerResponse response)
+        {
             // TODO
-            // S'ha de gestionar el cas en el qual es demana per accés "GET /access"
-
-            return result; // provisional
-        }
-
-        private static ExitStatus checkForBody(HttpListenerRequest request, HttpListenerResponse response)
-        {
-            if(request.HttpMethod != "POST" && request.HttpMethod != "PUT" || request.ContentLength64 == 0)
-            {
-                response.StatusCode = (int)HttpStatusCode.BadRequest;
-                var errorResponse = new { error = "Request body is missing" };
-                sendJsonResponse(response, JsonSerializer.Serialize(errorResponse));
-                return new ExitStatus()
-                {
-                    status = ExitCodes.ERROR,
-                    message = "Should have body and should be POST or PUT."
-                };
-            }
-            else
-            {
-                using var reader = new StreamReader(request.InputStream, request.ContentEncoding);
-                return new ExitStatus()
-                {
-                    status = ExitCodes.OK,
-                    result = reader.ReadToEnd()
-                };
-            }
-        }
-        
-        private static async Task<ExitStatus> handleSignin(HttpListenerRequest request, HttpListenerResponse response)
-        {
-            ExitStatus result = checkForBody(request, response);
-            if (result.status == ExitCodes.OK)
-            {
-                result = await usersAPI.signInUser((string)result.result!);
-                if (result.status != ExitCodes.OK)
-                {
-                    throw new Exception(result.message);
-                }
-                // prepara cookies amb sessió
-                //      guarda la cookie a la bbdd
-                int sessionId = SessionHandler.getSessionsCounter();
-                DDBBHandler dDBBHandler = DDBBHandler.getInstance();
-                await dDBBHandler.write("sessions", JsonDocument.Parse($@"{{ ""sessionId"": ""{sessionId}"" }}").RootElement);
-                //      configura la cookie
-                var cookieValue = $"session-id={sessionId}; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddDays(1):R}; Secure={false}; Domain=localhost";
-                response.Headers.Add("Set-Cookie", cookieValue);
-
-                int responseCode = result.status switch
-                {
-                    ExitCodes.OK => (int)HttpStatusCode.OK,
-                    ExitCodes.BAD_REQUEST => (int)HttpStatusCode.BadRequest,
-                    _ => (int)HttpStatusCode.InternalServerError
-                };
-
-                // prepara resposta
-                response.StatusCode = responseCode;
-                var responseObject = new
-                {
-                    message = result.message,
-                    status = "success",
-                    data = result.result
-                };
-                sendJsonResponse(response, JsonSerializer.Serialize(responseObject));
-            }
-            else
-            {
-                Logger.ApiLogger.Error(result.message);
-            }
-
-            return result; // provisional
-        }
-
-        private static async Task<ExitStatus> handleSignup(HttpListenerRequest request, HttpListenerResponse response)
-        {
-            return new ExitStatus(); // provisional
-        }
-
-        private static async Task<ExitStatus> handleSignout(HttpListenerRequest request)
-        {
+            // Adabtar per a JWT
             var sessionCookie = request.Cookies["session-id"];
-            ExitStatus result = new ExitStatus();
-            if (sessionCookie != null)
+            var result = new ExitStatus();
+
+            if (sessionCookie == null)
             {
-                result = await SessionHandler.signOutHandler(sessionCookie.Value);
+                result = new ExitStatus { status = ExitCodes.UNAUTHORIZED, message = "No session found" };
+                response.StatusCode = (int)HttpStatusCode.Unauthorized;
             }
+            else
+            {
+                var sessionValidation = await SessionHandler.IsSessionActive(sessionCookie.Value);
+                result = sessionValidation.status == ExitCodes.OK
+                    ? new ExitStatus { status = ExitCodes.OK, message = "Access granted" }
+                    : new ExitStatus { status = ExitCodes.UNAUTHORIZED, message = "Invalid session" };
+
+                response.StatusCode = sessionValidation.status == ExitCodes.OK
+                    ? (int)HttpStatusCode.OK
+                    : (int)HttpStatusCode.Unauthorized;
+            }
+
+            SendJsonResponse(response, JsonSerializer.Serialize(new { status = result.status == ExitCodes.OK, message = result.message }));
             return result;
         }
 
 
-        private static void sendJsonResponse(HttpListenerResponse response, string jsonData)
+
+        private static async Task<ExitStatus> HandleSign(HttpListenerRequest request, HttpListenerResponse response, string action)
+        {
+            var bodyResult = CheckForBody(request, response);
+            if (bodyResult.status != ExitCodes.OK) return bodyResult;
+
+            var result = action switch
+            {
+                "signin" => await usersAPI.signInUser((string)bodyResult.result!),
+                "signup" => await usersAPI.signUpUser((string)bodyResult.result!),
+                _ => throw new ArgumentException("Invalid action")
+            };
+
+            if (result.status == ExitCodes.OK)
+            {
+                int sessionId = SessionHandler.GetSessionsCounter();
+                var ddbb = DDBBHandler.getInstance();
+                await ddbb.write("sessions", JsonDocument.Parse($@"{{ ""sessionId"": ""{sessionId}"" }}").RootElement);
+
+                response.Headers.Add("Set-Cookie", $"session-id={sessionId}; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddDays(1):R}; Domain=localhost");
+                response.StatusCode = (int)HttpStatusCode.OK;
+                SendJsonResponse(response, JsonSerializer.Serialize(new { message = result.message, status = "success" }));
+            }
+            else
+            {
+                response.StatusCode = (int)HttpStatusCode.BadRequest;
+                SendJsonResponse(response, JsonSerializer.Serialize(new { error = result.message }));
+            }
+
+            return result;
+        }
+
+        private static async Task<ExitStatus> HandleSignOut(HttpListenerRequest request)
+        {
+            var sessionCookie = request.Cookies["session-id"];
+            if (sessionCookie == null) return new ExitStatus { status = ExitCodes.BAD_REQUEST };
+
+            return await SessionHandler.SignOutHandler(sessionCookie.Value);
+        }
+
+        private static ExitStatus CheckForBody(HttpListenerRequest request, HttpListenerResponse response)
+        {
+            if (request.HttpMethod != "POST" || request.ContentLength64 == 0)
+            {
+                response.StatusCode = (int)HttpStatusCode.BadRequest;
+                SendJsonResponse(response, JsonSerializer.Serialize(new { error = "Missing body" }));
+                return new ExitStatus { status = ExitCodes.BAD_REQUEST, message = "Missing body" };
+            }
+
+            using var reader = new StreamReader(request.InputStream, request.ContentEncoding);
+            return new ExitStatus { status = ExitCodes.OK, result = reader.ReadToEnd() };
+        }
+
+        private static void SendJsonResponse(HttpListenerResponse response, string jsonData)
         {
             response.ContentType = "application/json";
             byte[] buffer = Encoding.UTF8.GetBytes(jsonData);
@@ -225,155 +186,19 @@ namespace chatserver.server
             response.OutputStream.Write(buffer, 0, buffer.Length);
         }
 
-        // deprecated
-        private static async Task<ExitStatus> handleSignRequests(string recievedData, string action)
+        private static void AddCorsHeaders(HttpListenerResponse response, HttpListenerRequest request)
         {
-            ExitStatus exitStatus = new ExitStatus();
-            try
-            {
-                ExitStatus result = action switch
-                {
-                    "signUp" => await usersAPI.signUpUser(recievedData),
-                    "signIn" => await usersAPI.signInUser(recievedData),
-                    _ => throw new ArgumentException("Invalid action")
-                };
-
-                exitStatus.status = result.status;
-                exitStatus.message = result.message;
-                exitStatus.result = result.result;
-            }
-            catch (Exception ex)
-            {
-                exitStatus.status = ExitCodes.ERROR;
-                exitStatus.message = ex.Message;
-            }
-
-            return exitStatus;
-        }
-
-        private static void addCorsHeaders(HttpListenerResponse response, HttpListenerRequest request)
-        {
-            var origin = request.Headers["Origin"];
-            if (!string.IsNullOrEmpty(origin))
-            {
-                response.AddHeader("Access-Control-Allow-Origin", origin);
-            }
-            response.AddHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS");
+            response.AddHeader("Access-Control-Allow-Origin", request.Headers["Origin"] ?? "*");
+            response.AddHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
             response.AddHeader("Access-Control-Allow-Headers", "Content-Type");
             response.AddHeader("Access-Control-Allow-Credentials", "true");
         }
-        
-        // deprecated
-        private static async Task handlePutRequest(HttpListenerRequest request, HttpListenerResponse response)
+
+        private static ExitStatus NotFoundResponse(HttpListenerResponse response)
         {
-            List<string> requestRoutes = Utils.getUrlRoutes(url: request.Url!);
-            if (requestRoutes.Count <= 0)
-            {
-                response.StatusCode = (int)HttpStatusCode.BadRequest;
-                return;
-            }
-
-            if (requestRoutes[0] == "signout")
-            {
-                var sessionCookie = request.Cookies["session-id"];
-                if (sessionCookie != null)
-                {
-                    ExitStatus result = await SessionHandler.signOutHandler(sessionCookie.Value);
-                }
-            }
-        }
-
-        // deprecated
-        private static async Task handleGetRequest(HttpListenerRequest request, HttpListenerResponse response)
-        {
-
-            List<string> requestRoutes = Utils.getUrlRoutes(url: request.Url!);
-
-            if (requestRoutes.Count <= 0)
-            {
-                response.StatusCode = (int)HttpStatusCode.BadRequest;
-                return;
-            }
-            
-            if (requestRoutes[0] == "im_i_logged_in")
-            {
-                Logger.ConsoleLogger.Debug("A user has requested access");
-                Logger.ApiLogger.Debug("A user has requested access");
-                bool userStatus = false;
-
-                var sessionCookie = request.Cookies["session-id"];
-                if (sessionCookie != null)
-                {
-                    ExitStatus result = await SessionHandler.isSessionActive(sessionCookie.Value);
-                    if (result.status == ExitCodes.OK) userStatus = (bool)result.result;
-                }   
-
-                response.StatusCode = (int)HttpStatusCode.OK;
-                var responseObject = new
-                {
-                    status = userStatus,
-                };
-                string jsonResponse = JsonSerializer.Serialize(responseObject);
-
-                sendJsonResponse(response, jsonResponse);
-            }
-        }
-
-        // deprecated
-        private static async Task handlePostRequest(HttpListenerRequest request, HttpListenerResponse response)
-        {
-            // Comprovem que hi hagi un cos a la petició
-            if (request.ContentLength64 == 0)
-            {
-                response.StatusCode = (int)HttpStatusCode.BadRequest;
-                var errorResponse = new { error = "Request body is missing" };
-                sendJsonResponse(response, JsonSerializer.Serialize(errorResponse));
-                return;
-            }
-
-            // Llegim el cos de la petició
-            using var reader = new StreamReader(request.InputStream, request.ContentEncoding);
-            string recievedData = reader.ReadToEnd();
-
-            List<string> requestRoutes = Utils.getUrlRoutes(url: request.Url!);
-            if (requestRoutes.Count == 0)
-            {
-                response.StatusCode = (int)HttpStatusCode.NotFound;
-                var errorResponse = new { error = "No route specified" };
-                sendJsonResponse(response, JsonSerializer.Serialize(errorResponse));
-                return;
-            }
-
-            if (requestRoutes[0] == "sign_users")
-            {
-                ExitStatus signResult = await handleSignRequests(recievedData, requestRoutes[1]);
-
-                int responseCode = signResult.status switch
-                {
-                    ExitCodes.OK => (int)HttpStatusCode.OK,
-                    ExitCodes.BAD_REQUEST => (int)HttpStatusCode.BadRequest,
-                    _ => (int)HttpStatusCode.InternalServerError
-                };
-
-                // prepara cookies amb sessió
-                //      guarda la cookie a la bbdd
-                int sessionId = SessionHandler.getSessionsCounter();
-                DDBBHandler dDBBHandler = DDBBHandler.getInstance();
-                await dDBBHandler.write("sessions", JsonDocument.Parse($@"{{ ""sessionId"": ""{sessionId}"" }}").RootElement);
-                //      configura la cookie
-                var cookieValue = $"session-id={sessionId}; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddDays(1):R}; Secure={false}; Domain=localhost";
-                response.Headers.Add("Set-Cookie", cookieValue);
-
-                // prepara resposta
-                response.StatusCode = responseCode;
-                var responseObject = new
-                {
-                    message = signResult.message,
-                    status = "success",
-                    data = signResult.result
-                };
-                sendJsonResponse(response, JsonSerializer.Serialize(responseObject));
-            }
+            response.StatusCode = (int)HttpStatusCode.NotFound;
+            SendJsonResponse(response, JsonSerializer.Serialize(new { error = "Endpoint not found" }));
+            return new ExitStatus { status = ExitCodes.NOT_FOUND, message = "Endpoint not found" };
         }
     }
 }

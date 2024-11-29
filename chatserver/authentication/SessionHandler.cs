@@ -18,7 +18,7 @@ namespace chatserver.authentication
 
         private static int sessionsCounter = 0;
 
-        public async static Task<ExitStatus> isSessionActive(string sessionId)
+        public async static Task<ExitStatus> IsSessionActive(string sessionId)
         {
             try
             {
@@ -42,7 +42,7 @@ namespace chatserver.authentication
             }
         }
 
-        public async static Task<ExitStatus> signOutHandler(string sessionId)
+        public async static Task<ExitStatus> SignOutHandler(string sessionId)
         {
             try
             {
@@ -66,7 +66,7 @@ namespace chatserver.authentication
             }
         }
 
-        public static int getSessionsCounter()
+        public static int GetSessionsCounter()
         {
             return ++sessionsCounter;
         }
