@@ -70,6 +70,11 @@ namespace chatserver.server
             }
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="authHeader"></param>
+        /// <returns>message to send to user. the "result" is the HTTP.status code</returns>
         private static async Task<ExitStatus> checkAuthHeader(string authHeader)
         {
             if (string.IsNullOrEmpty(authHeader))
@@ -122,23 +127,21 @@ namespace chatserver.server
 
         private static async Task<ExitStatus> HandleSession(HttpListenerRequest request, HttpListenerResponse response)
         {
-            // 1. check if the session is active
             var sessionCookie = request.Cookies["session-id"];
             var result = new ExitStatus();
 
             if (sessionCookie == null)
             {
                 var authHeader = request.Headers["Authorization"];
-                ExitStatus authHeaderResult = await checkAuthHeader(authHeader);
-                if (authHeaderResult.status != ExitCodes.OK)
-                {
-                    response.StatusCode = (int)authHeaderResult.result!;
-                    SendJsonResponse(response, JsonSerializer.Serialize(new { message = (string)authHeaderResult.message! }));
-                }
-                
+                ExitStatus authHeaderResult = await checkAuthHeader(authHeader!);
+
+                response.StatusCode = (int)authHeaderResult.result!;
+                SendJsonResponse(response, JsonSerializer.Serialize(new { message = (string)authHeaderResult.message! }));
+                return authHeaderResult;
             }
             else
             {
+                // Revisar la validesa de la cookie
                 var sessionValidation = await SessionHandler.IsSessionActive(sessionCookie.Value);
                 result = sessionValidation.status == ExitCodes.OK
                     ? new ExitStatus { status = ExitCodes.OK, message = "Access granted" }
