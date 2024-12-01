@@ -70,8 +70,99 @@ namespace chatserver.server
             }
         }
 
+        private static async Task<ExitStatus> checkAuthHeader(string authHeader)
+        {
+            if (string.IsNullOrEmpty(authHeader))
+            {
+                // Si el header no està present, retorna un error
+                return new ExitStatus { 
+                    status = ExitCodes.UNAUTHORIZED, 
+                    message = "Authorization header missing", 
+                    result = (int)HttpStatusCode.Unauthorized 
+                };
+            }
+            else // té header
+            {
+                // Processa el token (p. ex., Bearer token)
+                if (authHeader.StartsWith("Bearer "))
+                {
+                    string token = authHeader.Substring("Bearer ".Length);
+
+                    ExitStatus isActive = await SessionHandler.IsSessionActiveJWT("");
+                    bool isValid = (bool)isActive.result!;
+
+                    if (isValid)
+                    {
+                        return new ExitStatus { 
+                            status = ExitCodes.OK, 
+                            message = "Valid token", 
+                            result = (int)HttpStatusCode.OK 
+                        };
+                    }
+                    else
+                    {
+                        return new ExitStatus { 
+                            status = ExitCodes.UNAUTHORIZED, 
+                            message = "Invalid token", 
+                            result = (int)HttpStatusCode.Unauthorized 
+                        };
+                    }
+                }
+                else
+                {
+                    // Si el header no comença amb "Bearer ", retorna un error
+                    return new ExitStatus { 
+                        status = ExitCodes.BAD_REQUEST, 
+                        message = "Invalid authorization format", 
+                        result = (int)HttpStatusCode.BadRequest 
+                    };
+                }
+            }
+        }
+
+        private static async Task<ExitStatus> HandleSession(HttpListenerRequest request, HttpListenerResponse response)
+        {
+            // 1. check if the session is active
+            var sessionCookie = request.Cookies["session-id"];
+            var result = new ExitStatus();
+
+            if (sessionCookie == null)
+            {
+                var authHeader = request.Headers["Authorization"];
+                ExitStatus authHeaderResult = await checkAuthHeader(authHeader);
+                if (authHeaderResult.status != ExitCodes.OK)
+                {
+                    response.StatusCode = (int)authHeaderResult.result!;
+                    SendJsonResponse(response, JsonSerializer.Serialize(new { message = (string)authHeaderResult.message! }));
+                }
+                
+            }
+            else
+            {
+                var sessionValidation = await SessionHandler.IsSessionActive(sessionCookie.Value);
+                result = sessionValidation.status == ExitCodes.OK
+                    ? new ExitStatus { status = ExitCodes.OK, message = "Access granted" }
+                    : new ExitStatus { status = ExitCodes.UNAUTHORIZED, message = "Invalid session" };
+
+                response.StatusCode = sessionValidation.status == ExitCodes.OK
+                    ? (int)HttpStatusCode.OK
+                    : (int)HttpStatusCode.Unauthorized;
+            }
+
+            SendJsonResponse(response, JsonSerializer.Serialize(new { status = result.status == ExitCodes.OK, message = result.message }));
+
+            return new ExitStatus();
+
+        }
+
+        private static ExitStatus GetSessionTokens(HttpListenerRequest request)
+        {
+            return new ExitStatus(); // provisional
+        }
+
         private static async Task HandleRoute(HttpListenerRequest request, HttpListenerResponse response, List<string> resources)
         {
+
             var result = resources[0] switch
             {
                 "access" => await HandleAccess(request, response, resources.Skip(1).ToList()),
@@ -162,7 +253,7 @@ namespace chatserver.server
             var sessionCookie = request.Cookies["session-id"];
             if (sessionCookie == null) return new ExitStatus { status = ExitCodes.BAD_REQUEST };
 
-            return await SessionHandler.SignOutHandler(sessionCookie.Value);
+            return await SessionHandler.SignOut(sessionCookie.Value);
         }
 
         private static ExitStatus CheckForBody(HttpListenerRequest request, HttpListenerResponse response)

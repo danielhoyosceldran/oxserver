@@ -12,7 +12,7 @@ namespace chatserver.authentication
     public class TokenProvider
     {
         private static TokenProvider instance = new TokenProvider(
-            getSecretKey(), // should exists "JWT_SECRET_KEY" in environment variables
+            GetSecretKey(), // should exists "JWT_SECRET_KEY" in environment variables
             60, // minutes
             7 // days
         );
@@ -22,7 +22,7 @@ namespace chatserver.authentication
         private readonly int _accessTokenExpirationMinutes;
         private readonly int _refreshTokenExpirationDays;
 
-        private static string getSecretKey()
+        private static string GetSecretKey()
         {
             try
             {            

@@ -18,6 +18,8 @@ namespace chatserver.authentication
 
         private static int sessionsCounter = 0;
 
+
+        // for sessions with cookies
         public async static Task<ExitStatus> IsSessionActive(string sessionId)
         {
             try
@@ -42,7 +44,17 @@ namespace chatserver.authentication
             }
         }
 
-        public async static Task<ExitStatus> SignOutHandler(string sessionId)
+        public async static Task<ExitStatus> IsSessionActiveJWT(string token)
+        {
+            return new ExitStatus();
+        } 
+
+        public static int GetSessionsCounter()
+        {
+            return ++sessionsCounter;
+        }
+
+        public async static Task<ExitStatus> SignOut(string sessionId)
         {
             try
             {
@@ -66,9 +78,7 @@ namespace chatserver.authentication
             }
         }
 
-        public static int GetSessionsCounter()
-        {
-            return ++sessionsCounter;
-        }
+
+
     }
 }
