@@ -7,6 +7,7 @@ using System.Security.Policy;
 using System.Text;
 using System.Threading.Tasks;
 using chatserver.DDBB;
+using chatserver.authentication;
 
 namespace chatserver.authentication
 {
@@ -17,7 +18,6 @@ namespace chatserver.authentication
         public static SessionHandler Instance { get { return instance; } }
 
         private static int sessionsCounter = 0;
-
 
         // for sessions with cookies
         public async static Task<ExitStatus> IsSessionActive(string sessionId)
@@ -44,10 +44,37 @@ namespace chatserver.authentication
             }
         }
 
-        public async static Task<ExitStatus> IsSessionActiveJWT(string token)
+        public async static Task<ExitStatus> RefreshSession(string token)
         {
-            return new ExitStatus();
-        } 
+            return new ExitStatus()
+            {
+                result = "token"
+            };
+        }
+
+        public async static Task<ExitStatus> validateAaccessToken(string token)
+        {
+            var returnval = TokenProvider.Instance.ValidateToken(token);
+            return new ExitStatus()
+            {
+                status = returnval == null
+                ? ExitCodes.UNAUTHORIZED
+                : returnval.Identity!.IsAuthenticated ? ExitCodes.OK : ExitCodes.UNAUTHORIZED,
+                result = returnval == null ? false : returnval.Identity!.IsAuthenticated
+            };
+        }
+
+        public async static Task<ExitStatus> GetTokens(string userId, string username)
+        {
+            TokensStruct tokens = new TokensStruct();
+            tokens.accessToken = TokenProvider.Instance.GenerateToken(userId, username);
+            tokens.refreshToken = TokenProvider.Instance.GenerateRefreshToken();
+            return new ExitStatus()
+            {
+                result = tokens
+            };
+        }
+
 
         public static int GetSessionsCounter()
         {
@@ -56,10 +83,12 @@ namespace chatserver.authentication
 
         public async static Task<ExitStatus> SignOut(string sessionId)
         {
+            // TODO
+            // pendent d'adabtar a amb refresh tokens
             try
             {
                 DDBBHandler dDBBHandler = DDBBHandler.getInstance();
-                ExitStatus result = await dDBBHandler.delete("sessions", "sessionId", sessionId);
+                ExitStatus result = await dDBBHandler.delete("sessions", "refreshToken", sessionId);
 
                 return new ExitStatus()
                 {
@@ -77,8 +106,5 @@ namespace chatserver.authentication
                 };
             }
         }
-
-
-
     }
 }

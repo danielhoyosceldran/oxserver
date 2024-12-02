@@ -48,4 +48,10 @@
         BAD_REQUESTS = 400,
         API_ERROR = 0
     }
+
+    public struct TokensStruct
+    {
+        public string accessToken;
+        public string refreshToken;
+    }
 }
