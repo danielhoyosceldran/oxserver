@@ -75,7 +75,7 @@ namespace chatserver.server
         /// </summary>
         /// <param name="authHeader"></param>
         /// <returns>message to send to user. the "result" is the HTTP.status code</returns>
-        private static async Task<ExitStatus> checkAuthHeader(string authHeader)
+        private static async Task<ExitStatus> checkAuthHeader(string authHeader, string username)
         {
             if (string.IsNullOrEmpty(authHeader))
             {
@@ -91,7 +91,7 @@ namespace chatserver.server
                 {
                     string token = authHeader.Substring("Bearer ".Length);
 
-                    ExitStatus refreshTokenResult = await SessionHandler.RefreshSession(token, ""); // TODO - complete
+                    ExitStatus refreshTokenResult = await SessionHandler.RefreshSession(token, username);
                     bool isValid = refreshTokenResult.status == ExitCodes.OK;
 
                     if (isValid)
@@ -150,7 +150,7 @@ namespace chatserver.server
                     else if (resources[0] == "signout")
                     {
                         await HandleSignOut(request, response);
-                    } // else if...
+                    }
                 }
                 else
                 {
@@ -190,23 +190,47 @@ namespace chatserver.server
 
         }
 
+        private static ExitStatus GetUsernameFromCookie(HttpListenerRequest request)
+        {
+            var username = request.Cookies["username"];
+            if (username == null) return new ExitStatus { status = ExitCodes.NOT_FOUND };
+            return new ExitStatus()
+            {
+                result = username.Value
+            };
+        }
+
         private static async Task<ExitStatus> HandleRefreshToken(HttpListenerRequest request, HttpListenerResponse response)
         {
-
             var authHeader = request.Headers["Authorization"];
-            ExitStatus authHeaderResult = await checkAuthHeader(authHeader!);
-            
-            response.StatusCode = authHeaderResult.status == ExitCodes.OK
-                ? (int)HttpStatusCode.OK
-                : (int)HttpStatusCode.Unauthorized;
+            ExitStatus usernameResult = GetUsernameFromCookie(request);
+            string username = usernameResult.status == ExitCodes.OK ? (string)usernameResult.result! : "";
+            ExitStatus authHeaderResult = await checkAuthHeader(authHeader!, username);
+
+            string accessToken = (string)authHeaderResult.result!;
+
+            if (authHeaderResult.status == ExitCodes.OK)
+            {
+                response.StatusCode = (int)HttpStatusCode.OK;
+                AddCookie(response, "accessToken", accessToken, 60);
+            }
+            else
+            {
+                response.StatusCode = (int)HttpStatusCode.Unauthorized;
+            }
 
             SendJsonResponse(response, JsonSerializer.Serialize(new { 
                 status = authHeaderResult.status == ExitCodes.OK, 
                 message = (string)authHeaderResult.message!,
-                authToken = (string)authHeaderResult.result!
+                authToken = accessToken
             }));
 
             return authHeaderResult;
+        }
+
+        private static void AddCookie(HttpListenerResponse response, string key, string value, int liveMinutes, bool httpOnly = true)
+        {
+            response.Headers.Add("Set-Cookie", $"{key}={value}; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddMinutes(liveMinutes):R};");
         }
 
         private static async Task HandleAccessResource(HttpListenerRequest request, HttpListenerResponse response, List<string> resources)
@@ -240,16 +264,17 @@ namespace chatserver.server
                 //int sessionId = SessionHandler.GetSessionsCounter();
                 TokensStruct tokens = (TokensStruct)(await SessionHandler.GetTokens("")).result!; // TODO - complete
                 var ddbb = DDBBHandler.getInstance();
+                string username = (string)result.result!;
                 var jsonDocument = new
                 {
-                    username = (string)result.result!,
+                    username = username,
                     refreshToken = tokens.refreshToken
                 };
                 var jsonElement = JsonDocument.Parse(JsonSerializer.Serialize(jsonDocument)).RootElement;
                 await ddbb.write("sessions", jsonElement);
 
-                response.Headers.Add("Set-Cookie", $"accessToken={tokens.accessToken}; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddMinutes(60):R};"); // Domain=localhost");
-                response.Headers.Add("Set-Cookie", $"userName={(string)result.result!}; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddMinutes(60):R};"); // Domain=localhost");
+                AddCookie(response, "accessToken", tokens.accessToken, 60);
+                AddCookie(response, "userName", username, 60);
                 response.StatusCode = (int)HttpStatusCode.OK;
                 SendJsonResponse(response, JsonSerializer.Serialize(new { status = true, refreshToken = tokens.refreshToken, message = result.message }));
             }
@@ -266,8 +291,13 @@ namespace chatserver.server
         {
             var sessionCookie = request.Cookies["accessToken"];
             if (sessionCookie == null) return new ExitStatus { status = ExitCodes.BAD_REQUEST };
-            
-            response.Headers.Add("Set-Cookie", $"accessToken=; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddMinutes(1):R}; Domain=localhost");
+
+            var username = request.Cookies["username"];
+            if (username == null) return new ExitStatus { status = ExitCodes.BAD_REQUEST };
+
+            _ = await SessionHandler.deleteSession(username.Value);
+            AddCookie(response, "accessToken", "", 1);
+
             return await SessionHandler.SignOut("");
         }
 

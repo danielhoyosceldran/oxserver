@@ -99,7 +99,7 @@ namespace chatserver.DDBB
                     return new ExitStatus
                     {
                         status = ExitCodes.OK,
-                        result = JsonDocument.Parse(bResult[fieldToRetrieve].ToJson())
+                        result = bResult[fieldToRetrieve].ToString()
                     };
                 }
                 else

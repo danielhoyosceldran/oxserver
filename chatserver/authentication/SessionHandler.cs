@@ -60,13 +60,13 @@ namespace chatserver.authentication
             //ExitStatus tokenValidationResult = CustomValidateToken(token, false);
 
             DDBBHandler dDBBHandler = DDBBHandler.getInstance();
-            // TODO
-            // retrieve stored token
             string storedRefreshToken = (string) (await dDBBHandler.FindField(DB_COLLECTION_NAME, "username", username, "refreshToken")).result!;
             bool tokenValidationResult = TokenProvider.Instance.ValidateRefreshToken(token, storedRefreshToken);
             if (tokenValidationResult)
             {
                 string userId = (string) (await UsersHandler.Instance.GetUserId(username)).result!;
+                result.status = ExitCodes.OK;
+                result.message = "Refresh Token valid";
                 result.result = TokenProvider.Instance.GenerateToken(userId, username);
             }
             return result;
@@ -96,7 +96,13 @@ namespace chatserver.authentication
             };
         }
 
+        public async static Task<ExitStatus> deleteSession(string username)
+        {
+            DDBBHandler dDBBHandler = DDBBHandler.getInstance();
+            return await dDBBHandler.delete(DB_COLLECTION_NAME, "username", username);
+        }
 
+        // Only for cookies session id
         public static int GetSessionsCounter()
         {
             return ++sessionsCounter;
