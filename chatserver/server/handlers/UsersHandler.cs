@@ -100,6 +100,7 @@ namespace chatserver.server.APIs
 
                 return new ExitStatus()
                 {
+                    status = ExitCodes.OK,
                     message = "User singed in succesfuly.",
                     result = username
                 };
