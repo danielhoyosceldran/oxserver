@@ -76,6 +76,51 @@ namespace chatserver.DDBB
             }
         }
 
+        public async Task<ExitStatus> FindField(string collectionName, string key, string value, string fieldToRetrieve)
+        {
+            try
+            {
+                // Accedim a la base de dades i la col·lecció
+                var database = client.GetDatabase(DATA_BASE_NAME);
+                var collection = database.GetCollection<BsonDocument>(collectionName);
+
+                // Construïm el filtre de cerca
+                var filter = Builders<BsonDocument>.Filter.Eq(key, value);
+
+                // Especifica el camp que vols recuperar
+                var projection = Builders<BsonDocument>.Projection.Include(fieldToRetrieve).Exclude("_id");
+
+                // Busca el document i aplica la projecció
+                var bResult = await collection.Find(filter).Project(projection).FirstOrDefaultAsync();
+
+                // Comprovem si el resultat existeix
+                if (bResult != null && bResult.Contains(fieldToRetrieve))
+                {
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.OK,
+                        result = JsonDocument.Parse(bResult[fieldToRetrieve].ToJson())
+                    };
+                }
+                else
+                {
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.NOT_FOUND,
+                        message = $"Field '{fieldToRetrieve}' not found or document does not exist"
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                return new ExitStatus
+                {
+                    status = ExitCodes.EXCEPTION,
+                    exception = ex.Message
+                };
+            }
+        }
+
         public async Task<ExitStatus> delete(string collectionName, string key, string value)
         {
             try

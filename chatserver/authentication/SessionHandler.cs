@@ -18,6 +18,7 @@ namespace chatserver.authentication
         private static SessionHandler instance = new SessionHandler();
         private SessionHandler() { }
         public static SessionHandler Instance { get { return instance; } }
+        private static readonly string DB_COLLECTION_NAME = "sessions";
 
         private static int sessionsCounter = 0;
 
@@ -57,7 +58,11 @@ namespace chatserver.authentication
             // This is only if we serve signed refresh tokens
             // We are not now.
             //ExitStatus tokenValidationResult = CustomValidateToken(token, false);
-            string storedRefreshToken = "";
+
+            DDBBHandler dDBBHandler = DDBBHandler.getInstance();
+            // TODO
+            // retrieve stored token
+            string storedRefreshToken = (string) (await dDBBHandler.FindField(DB_COLLECTION_NAME, "username", username, "refreshToken")).result!;
             bool tokenValidationResult = TokenProvider.Instance.ValidateRefreshToken(token, storedRefreshToken);
             if (tokenValidationResult)
             {

@@ -240,7 +240,13 @@ namespace chatserver.server
                 //int sessionId = SessionHandler.GetSessionsCounter();
                 TokensStruct tokens = (TokensStruct)(await SessionHandler.GetTokens("")).result!; // TODO - complete
                 var ddbb = DDBBHandler.getInstance();
-                await ddbb.write("sessions", JsonDocument.Parse($@"{{ ""refreshToken"": ""{tokens.refreshToken}"" }}").RootElement);
+                var jsonDocument = new
+                {
+                    username = (string)result.result!,
+                    refreshToken = tokens.refreshToken
+                };
+                var jsonElement = JsonDocument.Parse(JsonSerializer.Serialize(jsonDocument)).RootElement;
+                await ddbb.write("sessions", jsonElement);
 
                 response.Headers.Add("Set-Cookie", $"accessToken={tokens.accessToken}; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddMinutes(60):R};"); // Domain=localhost");
                 response.Headers.Add("Set-Cookie", $"userName={(string)result.result!}; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddMinutes(60):R};"); // Domain=localhost");
