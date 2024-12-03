@@ -8,6 +8,8 @@ using System.Text;
 using System.Threading.Tasks;
 using chatserver.DDBB;
 using chatserver.authentication;
+using Microsoft.IdentityModel.Tokens;
+using chatserver.server.APIs;
 
 namespace chatserver.authentication
 {
@@ -44,17 +46,30 @@ namespace chatserver.authentication
             }
         }
 
-        public async static Task<ExitStatus> RefreshSession(string token)
+        public async static Task<ExitStatus> RefreshSession(string token, string username)
         {
-            return new ExitStatus()
+            ExitStatus result = new ExitStatus()
             {
-                result = "token"
+                status = ExitCodes.ERROR,
+                message = "Refresh token not valid"
             };
+
+            // This is only if we serve signed refresh tokens
+            // We are not now.
+            //ExitStatus tokenValidationResult = CustomValidateToken(token, false);
+            string storedRefreshToken = "";
+            bool tokenValidationResult = TokenProvider.Instance.ValidateRefreshToken(token, storedRefreshToken);
+            if (tokenValidationResult)
+            {
+                string userId = (string) (await UsersHandler.Instance.GetUserId(username)).result!;
+                result.result = TokenProvider.Instance.GenerateToken(userId, username);
+            }
+            return result;
         }
 
-        public async static Task<ExitStatus> validateAaccessToken(string token)
+        public static ExitStatus CustomValidateToken(string token, bool isAccessToken = true)
         {
-            var returnval = TokenProvider.Instance.ValidateToken(token);
+            var returnval = TokenProvider.Instance.ValidateToken(token, isAccessToken);
             return new ExitStatus()
             {
                 status = returnval == null
@@ -64,8 +79,9 @@ namespace chatserver.authentication
             };
         }
 
-        public async static Task<ExitStatus> GetTokens(string userId, string username)
+        public async static Task<ExitStatus> GetTokens(string username)
         {
+            string userId = (string)(await UsersHandler.Instance.GetUserId(username)).result!;
             TokensStruct tokens = new TokensStruct();
             tokens.accessToken = TokenProvider.Instance.GenerateToken(userId, username);
             tokens.refreshToken = TokenProvider.Instance.GenerateRefreshToken();

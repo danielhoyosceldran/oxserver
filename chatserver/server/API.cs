@@ -13,7 +13,7 @@ namespace chatserver.server
         private static int Port = 8081;
 
         private static HttpListener _listener = new HttpListener();
-        private static UsersHandler usersAPI = new UsersHandler();
+        private static UsersHandler usersAPI = UsersHandler.Instance;
 
         public static async Task Start()
         {
@@ -91,7 +91,7 @@ namespace chatserver.server
                 {
                     string token = authHeader.Substring("Bearer ".Length);
 
-                    ExitStatus refreshTokenResult = await SessionHandler.RefreshSession("");
+                    ExitStatus refreshTokenResult = await SessionHandler.RefreshSession(token, ""); // TODO - complete
                     bool isValid = refreshTokenResult.status == ExitCodes.OK;
 
                     if (isValid)
@@ -176,7 +176,7 @@ namespace chatserver.server
             if (sessionCookie != null)
             {
                 // Revisar la validesa de la cookie
-                ExitStatus sessionValidation = await SessionHandler.validateAaccessToken(sessionCookie.Value);
+                ExitStatus sessionValidation = SessionHandler.CustomValidateToken(sessionCookie.Value);
                 result = sessionValidation.status == ExitCodes.OK
                     ? new ExitStatus { status = ExitCodes.OK, message = "Access granted" }
                     : new ExitStatus { status = ExitCodes.UNAUTHORIZED, message = "Invalid session" };
@@ -238,11 +238,12 @@ namespace chatserver.server
             if (result.status == ExitCodes.OK)
             {
                 //int sessionId = SessionHandler.GetSessionsCounter();
-                TokensStruct tokens = (TokensStruct)(await SessionHandler.GetTokens("", "")).result!;
+                TokensStruct tokens = (TokensStruct)(await SessionHandler.GetTokens("")).result!; // TODO - complete
                 var ddbb = DDBBHandler.getInstance();
                 await ddbb.write("sessions", JsonDocument.Parse($@"{{ ""refreshToken"": ""{tokens.refreshToken}"" }}").RootElement);
 
-                response.Headers.Add("Set-Cookie", $"accessToken={tokens.accessToken}; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddMinutes(60):R}; Domain=localhost");
+                response.Headers.Add("Set-Cookie", $"accessToken={tokens.accessToken}; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddMinutes(60):R};"); // Domain=localhost");
+                response.Headers.Add("Set-Cookie", $"userName={(string)result.result!}; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddMinutes(60):R};"); // Domain=localhost");
                 response.StatusCode = (int)HttpStatusCode.OK;
                 SendJsonResponse(response, JsonSerializer.Serialize(new { status = true, refreshToken = tokens.refreshToken, message = result.message }));
             }

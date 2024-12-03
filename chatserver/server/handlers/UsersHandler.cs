@@ -2,13 +2,16 @@
 using chatserver.utils;
 using System.Text.Json;
 using chatserver.authentication;
+using System.Security.Policy;
 
 namespace chatserver.server.APIs
 {
     internal class UsersHandler
     {
         private readonly string DB_COLLECTION_NAME = "users";
-        public UsersHandler() { }
+        private UsersHandler() { }
+        private static UsersHandler instance = new UsersHandler();
+        public static UsersHandler Instance { get { return instance; } }
 
         public async Task<ExitStatus> signUpUser(string data)
         {
@@ -39,7 +42,11 @@ namespace chatserver.server.APIs
                 DDBBHandler dDBBHandler = DDBBHandler.getInstance();
                 await dDBBHandler.write("users", root);
 
-                return new ExitStatus();
+                return new ExitStatus()
+                {
+                    message = "User registered correctly.",
+                    result = username,
+                };
             }
             catch (Exception ex) 
             {
@@ -57,6 +64,15 @@ namespace chatserver.server.APIs
                 }
                 return ret;
             }
+        }
+
+        public async Task<ExitStatus> GetUserId(string username)
+        {
+            // TODO
+            return new ExitStatus()
+            {
+                result = ""
+            };
         }
 
         public async Task<ExitStatus> signInUser(string data)
@@ -85,6 +101,7 @@ namespace chatserver.server.APIs
                 return new ExitStatus()
                 {
                     message = "User singed in succesfuly.",
+                    result = username
                 };
             }
             catch (Exception ex)

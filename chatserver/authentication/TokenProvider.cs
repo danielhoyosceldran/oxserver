@@ -22,6 +22,9 @@ namespace chatserver.authentication
         private readonly int _accessTokenExpirationMinutes;
         private readonly int _refreshTokenExpirationDays;
 
+        private readonly string issuer = "api.oxserver";
+        private readonly string audience = "oxapp";
+
         private static string GetSecretKey()
         {
             try
@@ -58,8 +61,8 @@ namespace chatserver.authentication
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
-                issuer: "your-issuer",
-                audience: "your-audience",
+                issuer: issuer,
+                audience: audience,
                 claims: claims,
                 expires: DateTime.UtcNow.AddMinutes(_accessTokenExpirationMinutes),
                 signingCredentials: creds
@@ -88,8 +91,8 @@ namespace chatserver.authentication
                 ValidateAudience = true,
                 ValidateLifetime = isAccessToken, // Only validate expiration for Access Tokens
                 ValidateIssuerSigningKey = true,
-                ValidIssuer = "your-issuer",
-                ValidAudience = "your-audience",
+                ValidIssuer = issuer,
+                ValidAudience = audience,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secretKey)),
                 ClockSkew = TimeSpan.Zero // Optional: No leeway for token expiration
             };
