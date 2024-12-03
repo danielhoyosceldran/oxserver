@@ -281,7 +281,7 @@ namespace chatserver.server
             else
             {
                 response.StatusCode = (int)HttpStatusCode.BadRequest;
-                SendJsonResponse(response, JsonSerializer.Serialize(new { status = false, error = result.message }));
+                SendJsonResponse(response, JsonSerializer.Serialize(new { status = false, message = result.message }));
             }
 
             return result;
