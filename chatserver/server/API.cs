@@ -128,7 +128,13 @@ namespace chatserver.server
 
                 if (sessionResult.status == ExitCodes.UNAUTHORIZED)
                 {
-                    if (resources[0] == "access")
+                    if (resources.Count == 0)
+                    {
+                        // TODO
+                        // S'han d'enviar response status?
+                        SendJsonResponse(response, JsonSerializer.Serialize(new { status = false }));
+                    }
+                    else if (resources[0] == "access")
                     {
                         await HandleAccessResource(request, response, resources.Skip(1).ToList());
                     }
@@ -138,6 +144,8 @@ namespace chatserver.server
                     }
                     else
                     {
+                        // TODO
+                        // S'han d'enviar response status?
                         SendJsonResponse(response, JsonSerializer.Serialize(new { status = false }));
                     }
                 }
@@ -167,6 +175,8 @@ namespace chatserver.server
         private static async Task<ExitStatus> checkAuthorization(HttpListenerRequest request, HttpListenerResponse response)
         {
             var sessionCookie = request.Cookies["accessToken"];
+            // TODO
+            // Control valid
             var result = new ExitStatus()
             {
                 status = ExitCodes.UNAUTHORIZED,
@@ -190,9 +200,9 @@ namespace chatserver.server
 
         }
 
-        private static ExitStatus GetUsernameFromCookie(HttpListenerRequest request)
+        private static ExitStatus GetValueFromCookie(HttpListenerRequest request, string cookieName)
         {
-            var username = request.Cookies["username"];
+            var username = request.Cookies[cookieName];
             if (username == null) return new ExitStatus { status = ExitCodes.NOT_FOUND };
             return new ExitStatus()
             {
@@ -203,8 +213,15 @@ namespace chatserver.server
         private static async Task<ExitStatus> HandleRefreshToken(HttpListenerRequest request, HttpListenerResponse response)
         {
             var authHeader = request.Headers["Authorization"];
-            ExitStatus usernameResult = GetUsernameFromCookie(request);
+            ExitStatus usernameResult = GetValueFromCookie(request, "username");
+            if (usernameResult.status != ExitCodes.OK)
+            {
+                // TODO
+                // Haurà de retornar un error conforme està unauthorized.
+                // necessitem el username. Si no està, l'haurem de recuperar mitjançant un inici de sessió
+            }
             string username = usernameResult.status == ExitCodes.OK ? (string)usernameResult.result! : "";
+
             ExitStatus authHeaderResult = await checkAuthHeader(authHeader!, username);
 
             string accessToken = (string)authHeaderResult.result!;
@@ -226,11 +243,6 @@ namespace chatserver.server
             }));
 
             return authHeaderResult;
-        }
-
-        private static void AddCookie(HttpListenerResponse response, string key, string value, int liveMinutes, bool httpOnly = true)
-        {
-            response.Headers.Add("Set-Cookie", $"{key}={value}; HttpOnly; Path=/; Expires={DateTime.UtcNow.AddMinutes(liveMinutes):R};");
         }
 
         private static async Task HandleAccessResource(HttpListenerRequest request, HttpListenerResponse response, List<string> resources)
@@ -274,7 +286,7 @@ namespace chatserver.server
                 await ddbb.write("sessions", jsonElement);
 
                 AddCookie(response, "accessToken", tokens.accessToken, 60);
-                AddCookie(response, "userName", username, 60);
+                AddCookie(response, "userName", username, 0);
                 response.StatusCode = (int)HttpStatusCode.OK;
                 SendJsonResponse(response, JsonSerializer.Serialize(new { status = true, refreshToken = tokens.refreshToken, message = result.message }));
             }
@@ -340,6 +352,13 @@ namespace chatserver.server
                 message = "Endpoint not found",
                 result = (int)HttpStatusCode.NotFound
             };
+        }
+
+        private static void AddCookie(HttpListenerResponse response, string key, string value, int liveMinutes, bool httpOnly = true)
+        {
+            string expires = liveMinutes > 0 ? $"Expires={DateTime.UtcNow.AddMinutes(liveMinutes):R}" : "";
+            string httponly = httpOnly ? "HttpOnly" : "";
+            response.Headers.Add("Set-Cookie", $"{key}={value}; {httponly}; Path=/; {expires};");
         }
     }
 }
