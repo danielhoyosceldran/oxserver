@@ -70,56 +70,6 @@ namespace chatserver.server
             }
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="authHeader"></param>
-        /// <returns>message to send to user. the "result" is the HTTP.status code</returns>
-        private static async Task<ExitStatus> checkAuthHeader(string authHeader, string username)
-        {
-            if (string.IsNullOrEmpty(authHeader))
-            {
-                // Si el header no està present, retorna un error
-                return new ExitStatus { 
-                    status = ExitCodes.UNAUTHORIZED, 
-                    message = "Authorization header missing",
-                };
-            }
-            else // té header
-            {
-                if (authHeader.StartsWith("Bearer "))
-                {
-                    string token = authHeader.Substring("Bearer ".Length);
-
-                    ExitStatus refreshTokenResult = await SessionHandler.RefreshSession(token, username);
-                    bool isValid = refreshTokenResult.status == ExitCodes.OK;
-
-                    if (isValid)
-                    {
-                        return new ExitStatus { 
-                            status = ExitCodes.OK, 
-                            message = "Valid token", 
-                            result = (string)refreshTokenResult.result!,
-                        };
-                    }
-                    else
-                    {
-                        return new ExitStatus { 
-                            status = ExitCodes.UNAUTHORIZED, 
-                            message = "Invalid token",
-                        };
-                    }
-                }
-                else
-                {
-                    return new ExitStatus { 
-                        status = ExitCodes.BAD_REQUEST, 
-                        message = "Invalid authorization format",
-                    };
-                }
-            }
-        }
-
         private static async Task HandleRoute(HttpListenerRequest request, HttpListenerResponse response, List<string> resources)
         {
             try
@@ -130,17 +80,11 @@ namespace chatserver.server
                 {
                     if (resources.Count == 0)
                     {
-                        // TODO
-                        // S'han d'enviar response status?
-                        SendJsonResponse(response, JsonSerializer.Serialize(new { status = false }));
+                        await HandleRefreshToken(request, response);
                     }
                     else if (resources[0] == "access")
                     {
                         await HandleAccessResource(request, response, resources.Skip(1).ToList());
-                    }
-                    else if (resources[0] == "refresh_token")
-                    {
-                        await HandleRefreshToken(request, response);
                     }
                     else
                     {
@@ -200,14 +144,58 @@ namespace chatserver.server
 
         }
 
-        private static ExitStatus GetValueFromCookie(HttpListenerRequest request, string cookieName)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="authHeader"></param>
+        /// <returns>message to send to user. the "result" is the HTTP.status code</returns>
+        private static async Task<ExitStatus> checkAuthHeader(string authHeader, string username)
         {
-            var username = request.Cookies[cookieName];
-            if (username == null) return new ExitStatus { status = ExitCodes.NOT_FOUND };
-            return new ExitStatus()
+            if (string.IsNullOrEmpty(authHeader))
             {
-                result = username.Value
-            };
+                // Si el header no està present, retorna un error
+                return new ExitStatus
+                {
+                    status = ExitCodes.UNAUTHORIZED,
+                    message = "Authorization header missing",
+                };
+            }
+            else // té header
+            {
+                if (authHeader.StartsWith("Bearer "))
+                {
+                    string token = authHeader.Substring("Bearer ".Length);
+
+                    ExitStatus refreshTokenResult = await SessionHandler.RefreshSession(token, username);
+                    bool isValid = refreshTokenResult.status == ExitCodes.OK;
+
+                    if (isValid)
+                    {
+                        return new ExitStatus
+                        {
+                            status = ExitCodes.OK,
+                            message = "Valid token",
+                            result = (string)refreshTokenResult.result!,
+                        };
+                    }
+                    else
+                    {
+                        return new ExitStatus
+                        {
+                            status = ExitCodes.UNAUTHORIZED,
+                            message = "Invalid token",
+                        };
+                    }
+                }
+                else
+                {
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.BAD_REQUEST,
+                        message = "Invalid authorization format",
+                    };
+                }
+            }
         }
 
         private static async Task<ExitStatus> HandleRefreshToken(HttpListenerRequest request, HttpListenerResponse response)
@@ -277,6 +265,13 @@ namespace chatserver.server
                 TokensStruct tokens = (TokensStruct)(await SessionHandler.GetTokens("")).result!; // TODO - complete
                 var ddbb = DDBBHandler.getInstance();
                 string username = (string)result.result!;
+
+                // TODO
+                // Crec que la part de guardar això a la bbdd no hauria de ser aquí
+                // delete last refresh token (if exists)
+                await ddbb.delete("sessions", "username", username);
+
+                // add new refresh token
                 var jsonDocument = new
                 {
                     username = username,
@@ -313,6 +308,16 @@ namespace chatserver.server
             return await SessionHandler.SignOut("");
         }
 
+        private static ExitStatus GetValueFromCookie(HttpListenerRequest request, string cookieName)
+        {
+            var username = request.Cookies[cookieName];
+            if (username == null) return new ExitStatus { status = ExitCodes.NOT_FOUND };
+            return new ExitStatus()
+            {
+                result = username.Value
+            };
+        }
+
         private static ExitStatus CheckForBody(HttpListenerRequest request, HttpListenerResponse response)
         {
             if (request.HttpMethod != "POST" || request.ContentLength64 == 0)
@@ -338,7 +343,7 @@ namespace chatserver.server
         {
             response.AddHeader("Access-Control-Allow-Origin", request.Headers["Origin"] ?? "*");
             response.AddHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
-            response.AddHeader("Access-Control-Allow-Headers", "Content-Type");
+            response.AddHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
             response.AddHeader("Access-Control-Allow-Credentials", "true");
         }
 
