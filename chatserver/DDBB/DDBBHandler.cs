@@ -11,7 +11,7 @@ namespace chatserver.DDBB
         private readonly string DATA_BASE_NAME = "chat";
         private static DDBBHandler instance = new DDBBHandler();
 
-        public static DDBBHandler getInstance()
+        public static DDBBHandler GetInstance()
         {
             if (instance == null)
             {

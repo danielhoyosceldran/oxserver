@@ -74,7 +74,8 @@ namespace chatserver.server
         {
             try
             {
-                ExitStatus sessionResult = await checkAuthorization(request, response);
+                Logger.ConsoleLogger.Debug("[HandleRoute] - Start");
+                ExitStatus sessionResult = checkAuthorization(request, response);
 
                 if (sessionResult.status == ExitCodes.UNAUTHORIZED)
                 {
@@ -116,8 +117,9 @@ namespace chatserver.server
             }
         }
 
-        private static async Task<ExitStatus> checkAuthorization(HttpListenerRequest request, HttpListenerResponse response)
+        private static ExitStatus checkAuthorization(HttpListenerRequest request, HttpListenerResponse response)
         {
+            Logger.ConsoleLogger.Debug("[checkAuthorization] - Start");
             var sessionCookie = request.Cookies["accessToken"];
             // TODO
             // Control valid
@@ -129,6 +131,7 @@ namespace chatserver.server
 
             if (sessionCookie != null)
             {
+                Logger.ConsoleLogger.Debug("[checkAuthorization] - There is cookie");
                 // Revisar la validesa de la cookie
                 ExitStatus sessionValidation = SessionHandler.CustomValidateToken(sessionCookie.Value);
                 result = sessionValidation.status == ExitCodes.OK
@@ -139,7 +142,7 @@ namespace chatserver.server
                     ? (int)HttpStatusCode.OK
                     : (int)HttpStatusCode.Unauthorized;
             }
-
+            Logger.ConsoleLogger.Debug("[checkAuthorization] - End");
             return result;
 
         }
@@ -149,8 +152,9 @@ namespace chatserver.server
         /// </summary>
         /// <param name="authHeader"></param>
         /// <returns>message to send to user. the "result" is the HTTP.status code</returns>
-        private static async Task<ExitStatus> checkAuthHeader(string authHeader, string username)
+        private static async Task<ExitStatus> CheckAuthHeader(string authHeader, string username)
         {
+            Logger.ConsoleLogger.Debug("[checkAuthHeader] - Start");
             if (string.IsNullOrEmpty(authHeader))
             {
                 // Si el header no està present, retorna un error
@@ -171,6 +175,8 @@ namespace chatserver.server
 
                     if (isValid)
                     {
+                        Logger.ConsoleLogger.Debug("[checkAuthHeader] - End - Ok");
+                        Logger.ConsoleLogger.Debug($"[checkAuthHeader] - result: {(string)refreshTokenResult.result!}");
                         return new ExitStatus
                         {
                             status = ExitCodes.OK,
@@ -180,6 +186,7 @@ namespace chatserver.server
                     }
                     else
                     {
+                        Logger.ConsoleLogger.Debug("[checkAuthHeader] - End - unauthorized");
                         return new ExitStatus
                         {
                             status = ExitCodes.UNAUTHORIZED,
@@ -189,6 +196,7 @@ namespace chatserver.server
                 }
                 else
                 {
+                    Logger.ConsoleLogger.Debug("[checkAuthHeader] - End - Bad request");
                     return new ExitStatus
                     {
                         status = ExitCodes.BAD_REQUEST,
@@ -200,24 +208,26 @@ namespace chatserver.server
 
         private static async Task<ExitStatus> HandleRefreshToken(HttpListenerRequest request, HttpListenerResponse response)
         {
+            Logger.ConsoleLogger.Debug("[HandleRefreshToken] - Start");
             var authHeader = request.Headers["Authorization"];
             ExitStatus usernameResult = GetValueFromCookie(request, "username");
             if (usernameResult.status != ExitCodes.OK)
             {
+                Logger.ConsoleLogger.Debug("[HandleRefreshToken] - No username");
                 // TODO
                 // Haurà de retornar un error conforme està unauthorized.
                 // necessitem el username. Si no està, l'haurem de recuperar mitjançant un inici de sessió
             }
             string username = usernameResult.status == ExitCodes.OK ? (string)usernameResult.result! : "";
 
-            ExitStatus authHeaderResult = await checkAuthHeader(authHeader!, username);
+            ExitStatus authHeaderResult = await CheckAuthHeader(authHeader!, username);
 
             string accessToken = (string)authHeaderResult.result!;
 
             if (authHeaderResult.status == ExitCodes.OK)
             {
                 response.StatusCode = (int)HttpStatusCode.OK;
-                AddCookie(response, "accessToken", accessToken, 60);
+                AddCookie(response, "accessToken", accessToken, 15);
             }
             else
             {
@@ -230,6 +240,7 @@ namespace chatserver.server
                 authToken = accessToken
             }));
 
+            Logger.ConsoleLogger.Debug("[HandleRefreshToken] - End");
             return authHeaderResult;
         }
 
@@ -263,7 +274,7 @@ namespace chatserver.server
             {
                 //int sessionId = SessionHandler.GetSessionsCounter();
                 TokensStruct tokens = (TokensStruct)(await SessionHandler.GetTokens("")).result!; // TODO - complete
-                var ddbb = DDBBHandler.getInstance();
+                var ddbb = DDBBHandler.GetInstance();
                 string username = (string)result.result!;
 
                 // TODO
@@ -280,7 +291,7 @@ namespace chatserver.server
                 var jsonElement = JsonDocument.Parse(JsonSerializer.Serialize(jsonDocument)).RootElement;
                 await ddbb.write("sessions", jsonElement);
 
-                AddCookie(response, "accessToken", tokens.accessToken, 60);
+                AddCookie(response, "accessToken", tokens.accessToken, 15);
                 AddCookie(response, "userName", username, 0);
                 response.StatusCode = (int)HttpStatusCode.OK;
                 SendJsonResponse(response, JsonSerializer.Serialize(new { status = true, refreshToken = tokens.refreshToken, message = result.message }));
@@ -361,9 +372,13 @@ namespace chatserver.server
 
         private static void AddCookie(HttpListenerResponse response, string key, string value, int liveMinutes, bool httpOnly = true)
         {
+            Logger.ConsoleLogger.Debug("[AddCookie] - Start");
+            Logger.ConsoleLogger.Debug($"[AddCookie] - Now: {DateTime.UtcNow}");
+            Logger.ConsoleLogger.Debug($"[AddCookie] - Expires: {DateTime.UtcNow.AddMinutes(liveMinutes)}");
             string expires = liveMinutes > 0 ? $"Expires={DateTime.UtcNow.AddMinutes(liveMinutes):R}" : "";
             string httponly = httpOnly ? "HttpOnly" : "";
             response.Headers.Add("Set-Cookie", $"{key}={value}; {httponly}; Path=/; {expires};");
+            Logger.ConsoleLogger.Debug("[AddCookie] - End");
         }
     }
 }

@@ -85,6 +85,8 @@ namespace chatserver.authentication
         // Validate Token (Access or Refresh)
         public ClaimsPrincipal? ValidateToken(string token, bool isAccessToken = true)
         {
+            Logger.ConsoleLogger.Debug("[ValidateToken] - Start");
+            Logger.ConsoleLogger.Debug($"[ValidateToken] - token: {token}");
             var tokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuer = true,
@@ -99,11 +101,13 @@ namespace chatserver.authentication
 
             try
             {
+                Logger.ConsoleLogger.Debug("[ValidateToken] - validating...");
                 var tokenHandler = new JwtSecurityTokenHandler();
                 return tokenHandler.ValidateToken(token, tokenValidationParameters, out _);
             }
             catch
             {
+                Logger.ConsoleLogger.Debug("[ValidateToken] - null");
                 return null; // Token is invalid
             }
         }

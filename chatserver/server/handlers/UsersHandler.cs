@@ -39,7 +39,7 @@ namespace chatserver.server.APIs
                     };
                 }
 
-                DDBBHandler dDBBHandler = DDBBHandler.getInstance();
+                DDBBHandler dDBBHandler = DDBBHandler.GetInstance();
                 await dDBBHandler.write("users", root);
 
                 return new ExitStatus()
@@ -127,7 +127,7 @@ namespace chatserver.server.APIs
         {
             try
             {
-                DDBBHandler dDBBHandler = DDBBHandler.getInstance();
+                DDBBHandler dDBBHandler = DDBBHandler.GetInstance();
                 ExitStatus result = await dDBBHandler.find(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username);
 
                 return new ExitStatus()
