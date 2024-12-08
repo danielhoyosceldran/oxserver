@@ -146,6 +146,27 @@ namespace chatserver.server.APIs
             }
         }
 
+        private async Task<ExitStatus> RetrieveUserName(string username)
+        {
+            DDBBHandler ddbb = DDBBHandler.Instance;
+            ExitStatus result = await ddbb.RetrieveField("users", "username", username, "name");
+            if (result.status != ExitCodes.OK) result.message = "Contact not found";
+            return result;
+        }
+
+        private async Task<ExitStatus> RetrieveGroupName(string groupId)
+        {
+            DDBBHandler ddbb = DDBBHandler.Instance;
+            ExitStatus result = await ddbb.RetrieveField("groups", "groupId", groupId, "name");
+            if (result.status != ExitCodes.OK) result.message = "Group not found";
+            return result;
+        }
+
+        private bool IsGroup(string groupId)
+        {
+            return groupId.StartsWith("#gId");
+        }
+
         public async Task<ExitStatus> RetrieveContacts(string username)
         {
             DDBBHandler ddbb = DDBBHandler.Instance;
@@ -154,13 +175,41 @@ namespace chatserver.server.APIs
         }
 
         // Contacts
-        public async Task<ExitStatus> AddContact(string username, string usernameOrId)
+        public async Task<ExitStatus> AddContactOrGroup(string username, string usernameOrId)
         {
-            // TODO: Access control for contacts and groups
+            DDBBHandler ddbb = DDBBHandler.Instance;
+            bool isGroup = IsGroup(usernameOrId);
+
+            ExitStatus nameResult = isGroup ? await RetrieveGroupName(usernameOrId) : await RetrieveUserName(usernameOrId);
+            string name;
+
+            if (nameResult.status == ExitCodes.OK) name = (string)nameResult.result!;
+            else return nameResult;
+
+            // TODO: Sh'a de mirar si ja té afegit el contacte
+
+            var options = new JsonSerializerOptions
+            {
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            };
+
+            var newField = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    name = name,
+                    usernameOrId = isGroup ? null : usernameOrId,
+                    groupId = isGroup ? usernameOrId : null
+                }, options)
+            ).RootElement;
+
+            ExitStatus addResult = await ddbb.AddToArrayField("users", "username", username, isGroup ? "groups" : "contacts", newField);
+
+            // He de tenir en compte que potser l'usuari no existeix
+            // TODO: Return amb sentit
             return new ExitStatus();
         }
 
-        public async Task<ExitStatus> DeleteContact(string username, string usernameOrId)
+        public async Task<ExitStatus> DeleteContactOrGroup(string username, string usernameOrId)
         {
             // TODO: Access control for contacts and groups
             return new ExitStatus();

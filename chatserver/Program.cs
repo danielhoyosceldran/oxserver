@@ -16,6 +16,8 @@ namespace chatserver
         {
             _ = API.Start();
             _ = ChatServer.start();
+            await UsersHandler.Instance.AddContactOrGroup("danielfurats", "guest0");
+            await UsersHandler.Instance.AddContactOrGroup("danielfurats", "#gId-ff9901");
 
             // keep the programm running always
             await Task.Delay(-1);

@@ -152,5 +152,50 @@ namespace chatserver.DDBB
             }
         }
 
+        public async Task<ExitStatus> AddToArrayField(string collectionName, string key, string value, string arrayField, JsonElement newItem)
+        {
+            try
+            {
+                // Accedeix a la base de dades i a la col·lecció
+                var database = client.GetDatabase(DATA_BASE_NAME);
+                var collection = database.GetCollection<BsonDocument>(collectionName);
+
+                // Filtra el document basant-se en el key i el value
+                var filter = Builders<BsonDocument>.Filter.Eq(key, value);
+
+                // Crea l'operació de push per afegir l'element a l'array
+                var update = Builders<BsonDocument>.Update.Push(arrayField, BsonDocument.Parse(newItem.ToString()));
+
+                // Actualitza el document
+                var result = await collection.UpdateOneAsync(filter, update);
+
+                // Comprova si s'ha actualitzat
+                if (result.ModifiedCount > 0)
+                {
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.OK,
+                        message = $"Successfully added to {arrayField}."
+                    };
+                }
+                else
+                {
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.NOT_FOUND,
+                        message = $"Document with {key}={value} not found or {arrayField} does not exist."
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                return new ExitStatus
+                {
+                    status = ExitCodes.EXCEPTION,
+                    exception = ex.Message
+                };
+            }
+        }
+
     }
 }
