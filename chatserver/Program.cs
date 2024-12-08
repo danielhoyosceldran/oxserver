@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using chatserver.server;
+using chatserver.server.APIs;
 
 namespace chatserver
 {

@@ -10,16 +10,7 @@ namespace chatserver.DDBB
         MongoClient client;
         private readonly string DATA_BASE_NAME = "chat";
         private static DDBBHandler instance = new DDBBHandler();
-
-        public static DDBBHandler GetInstance()
-        {
-            if (instance == null)
-            {
-                // Should never enter. But in case of error...
-                instance = new DDBBHandler();
-            }
-            return instance; 
-        }
+        public static DDBBHandler Instance { get { return instance; } }
 
         private DDBBHandler()
         {
@@ -76,7 +67,7 @@ namespace chatserver.DDBB
             }
         }
 
-        public async Task<ExitStatus> FindField(string collectionName, string key, string value, string fieldToRetrieve)
+        public async Task<ExitStatus> RetrieveField(string collectionName, string key, string value, string fieldToRetrieve)
         {
             try
             {

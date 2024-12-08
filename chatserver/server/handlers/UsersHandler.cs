@@ -39,7 +39,7 @@ namespace chatserver.server.APIs
                     };
                 }
 
-                DDBBHandler dDBBHandler = DDBBHandler.GetInstance();
+                DDBBHandler dDBBHandler = DDBBHandler.Instance;
                 await dDBBHandler.write("users", root);
 
                 return new ExitStatus()
@@ -127,7 +127,7 @@ namespace chatserver.server.APIs
         {
             try
             {
-                DDBBHandler dDBBHandler = DDBBHandler.GetInstance();
+                DDBBHandler dDBBHandler = DDBBHandler.Instance;
                 ExitStatus result = await dDBBHandler.find(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username);
 
                 return new ExitStatus()
@@ -146,11 +146,36 @@ namespace chatserver.server.APIs
             }
         }
 
-        public async Task<ExitStatus> getContacts(string username)
+        public async Task<ExitStatus> RetrieveContacts(string username)
         {
-            return new ExitStatus
-            {
-            };
+            DDBBHandler ddbb = DDBBHandler.Instance;
+            ExitStatus result = await ddbb.RetrieveField("users", "username", username, "contacts");
+            return result;
+        }
+
+        // Contacts
+        public async Task<ExitStatus> AddContact(string username, string usernameOrId)
+        {
+            // TODO: Access control for contacts and groups
+            return new ExitStatus();
+        }
+
+        public async Task<ExitStatus> DeleteContact(string username, string usernameOrId)
+        {
+            // TODO: Access control for contacts and groups
+            return new ExitStatus();
+        }
+
+        public async Task<ExitStatus> UpdateContact(string username, string contactUsername, string newName)
+        {
+            // TODO: Access control for contacts and groups
+            return new ExitStatus();
+        }
+        
+        public async Task<ExitStatus> RetrieveMessages(string username, string contactUsername)
+        {
+            // TODO: Access control for contacts and groups
+            return new ExitStatus();
         }
     }
 }

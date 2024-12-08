@@ -274,7 +274,7 @@ namespace chatserver.server
             {
                 //int sessionId = SessionHandler.GetSessionsCounter();
                 TokensStruct tokens = (TokensStruct)(await SessionHandler.GetTokens("")).result!; // TODO - complete
-                var ddbb = DDBBHandler.GetInstance();
+                var ddbb = DDBBHandler.Instance;
                 string username = (string)result.result!;
 
                 // TODO

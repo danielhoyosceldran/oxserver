@@ -27,7 +27,7 @@ namespace chatserver.authentication
         {
             try
             {
-                DDBBHandler dDBBHandler = DDBBHandler.GetInstance();
+                DDBBHandler dDBBHandler = DDBBHandler.Instance;
                 ExitStatus result = await dDBBHandler.find("sessions", "sessionId", sessionId);
 
                 return new ExitStatus()
@@ -59,8 +59,8 @@ namespace chatserver.authentication
             // We are not now.
             //ExitStatus tokenValidationResult = CustomValidateToken(token, false);
 
-            DDBBHandler dDBBHandler = DDBBHandler.GetInstance();
-            string storedRefreshToken = (string) (await dDBBHandler.FindField(DB_COLLECTION_NAME, "username", username, "refreshToken")).result!;
+            DDBBHandler dDBBHandler = DDBBHandler.Instance;
+            string storedRefreshToken = (string) (await dDBBHandler.RetrieveField(DB_COLLECTION_NAME, "username", username, "refreshToken")).result!;
             bool tokenValidationResult = TokenProvider.Instance.ValidateRefreshToken(token, storedRefreshToken);
             if (tokenValidationResult)
             {
@@ -104,7 +104,7 @@ namespace chatserver.authentication
 
         public async static Task<ExitStatus> deleteSession(string username)
         {
-            DDBBHandler dDBBHandler = DDBBHandler.GetInstance();
+            DDBBHandler dDBBHandler = DDBBHandler.Instance;
             return await dDBBHandler.delete(DB_COLLECTION_NAME, "username", username);
         }
 
@@ -120,7 +120,7 @@ namespace chatserver.authentication
             // pendent d'adabtar a amb refresh tokens
             try
             {
-                DDBBHandler dDBBHandler = DDBBHandler.GetInstance();
+                DDBBHandler dDBBHandler = DDBBHandler.Instance;
                 ExitStatus result = await dDBBHandler.delete("sessions", "refreshToken", sessionId);
 
                 return new ExitStatus()
