@@ -265,7 +265,7 @@ namespace chatserver.server
 
             var result = action switch
             {
-                "signin" => await usersAPI.signInUser((string)bodyResult.result!),
+                "signin" => await usersAPI.SignInUser((string)bodyResult.result!),
                 "signup" => await usersAPI.signUpUser((string)bodyResult.result!),
                 _ => throw new ArgumentException("Invalid action")
             };

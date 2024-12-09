@@ -27,7 +27,7 @@ namespace chatserver.server.APIs
                 Logger.UsersLogger.Debug("[register user] start - " + username);
                 Logger.ConsoleLogger.Debug("[UsersAPI - registerUser] - Data rebuda: " + data);
 
-                if ((await userExists(username!)).status == ExitCodes.OK)
+                if ((await UserExists(username!)).status == ExitCodes.OK)
                 {
                     Logger.UsersLogger.Debug($"[signUpUser] - User {username} already exists");
                     Logger.ConsoleLogger.Debug($"[signUpUser] - User {username} already exists");
@@ -75,7 +75,7 @@ namespace chatserver.server.APIs
             };
         }
 
-        public async Task<ExitStatus> signInUser(string data)
+        public async Task<ExitStatus> SignInUser(string data)
         {
             try
             {
@@ -89,7 +89,7 @@ namespace chatserver.server.APIs
                 Logger.UsersLogger.Debug("[login user] start - " + username);
                 Logger.ConsoleLogger.Debug("[UsersAPI - loginUser] - Data rebuda: " + data);
 
-                if ((await userExists(username!)).status != ExitCodes.OK)
+                if ((await UserExists(username!)).status != ExitCodes.OK)
                 {
                     return new ExitStatus
                     {
@@ -123,18 +123,14 @@ namespace chatserver.server.APIs
             }
         }
 
-        private async Task<ExitStatus> userExists(string username)
+        private async Task<ExitStatus> UserExists(string username)
         {
             try
             {
                 DDBBHandler dDBBHandler = DDBBHandler.Instance;
                 ExitStatus result = await dDBBHandler.find(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username);
 
-                return new ExitStatus()
-                {
-                    status = result.status,
-                    message = result.message,
-                };
+                return result;
             }
             catch (Exception ex)
             {
@@ -146,10 +142,16 @@ namespace chatserver.server.APIs
             }
         }
 
+        private async Task<bool> ContactExists(string username, string contact)
+        {
+            DDBBHandler ddbb = DDBBHandler.Instance;
+            return await ddbb.FindInArray(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.CONTACTS, UsersDDBBStructure.USERNAME, contact);
+        }
+
         private async Task<ExitStatus> RetrieveUserName(string username)
         {
             DDBBHandler ddbb = DDBBHandler.Instance;
-            ExitStatus result = await ddbb.RetrieveField("users", "username", username, "name");
+            ExitStatus result = await ddbb.RetrieveField(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.NAME);
             if (result.status != ExitCodes.OK) result.message = "Contact not found";
             return result;
         }
@@ -157,7 +159,7 @@ namespace chatserver.server.APIs
         private async Task<ExitStatus> RetrieveGroupName(string groupId)
         {
             DDBBHandler ddbb = DDBBHandler.Instance;
-            ExitStatus result = await ddbb.RetrieveField("groups", "groupId", groupId, "name");
+            ExitStatus result = await ddbb.RetrieveField(UsersDDBBStructure.GROUPS, "groupId", groupId, UsersDDBBStructure.NAME);
             if (result.status != ExitCodes.OK) result.message = "Group not found";
             return result;
         }
@@ -170,7 +172,7 @@ namespace chatserver.server.APIs
         public async Task<ExitStatus> RetrieveContacts(string username)
         {
             DDBBHandler ddbb = DDBBHandler.Instance;
-            ExitStatus result = await ddbb.RetrieveField("users", "username", username, "contacts");
+            ExitStatus result = await ddbb.RetrieveField(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.CONTACTS);
             return result;
         }
 
@@ -178,7 +180,17 @@ namespace chatserver.server.APIs
         public async Task<ExitStatus> AddContactOrGroup(string username, string usernameOrId)
         {
             DDBBHandler ddbb = DDBBHandler.Instance;
+
             bool isGroup = IsGroup(usernameOrId);
+
+            // Check if the user to add exist
+            if (!isGroup)
+            {
+                ExitStatus userExists = await UserExists(usernameOrId);
+                if (userExists.status != ExitCodes.OK) return userExists;
+            }
+
+            // TODO check if the group exist
 
             ExitStatus nameResult = isGroup ? await RetrieveGroupName(usernameOrId) : await RetrieveUserName(usernameOrId);
             string name;
@@ -186,7 +198,13 @@ namespace chatserver.server.APIs
             if (nameResult.status == ExitCodes.OK) name = (string)nameResult.result!;
             else return nameResult;
 
-            // TODO: Sh'a de mirar si ja té afegit el contacte
+            // TODO: Sh'a de mirar si ja té afegit el group
+
+            if (await ContactExists(username, usernameOrId)) return new ExitStatus()
+            {
+                status = ExitCodes.ERROR,
+                message = "Contact already added",
+            };
 
             var options = new JsonSerializerOptions
             {
@@ -202,11 +220,13 @@ namespace chatserver.server.APIs
                 }, options)
             ).RootElement;
 
-            ExitStatus addResult = await ddbb.AddToArrayField("users", "username", username, isGroup ? "groups" : "contacts", newField);
+            ExitStatus addResult = await ddbb.AddToArrayField(DB_COLLECTION_NAME, "username", username, 
+                isGroup 
+                ? UsersDDBBStructure.GROUPS 
+                : UsersDDBBStructure.CONTACTS, newField
+            );
 
-            // He de tenir en compte que potser l'usuari no existeix
-            // TODO: Return amb sentit
-            return new ExitStatus();
+            return addResult;
         }
 
         public async Task<ExitStatus> DeleteContactOrGroup(string username, string usernameOrId)

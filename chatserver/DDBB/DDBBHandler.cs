@@ -197,5 +197,44 @@ namespace chatserver.DDBB
             }
         }
 
+        public async Task<bool> FindInArray(
+            string collectionName, 
+            string key, 
+            string value, 
+            string arrayKey, 
+            string elementKey, 
+            string elementValue)
+        {
+            try
+            {
+                var database = client.GetDatabase(DATA_BASE_NAME);
+                var collection = database.GetCollection<BsonDocument>(collectionName);
+
+                // Construir el filtre
+                var filter = Builders<BsonDocument>.Filter.And(
+                    Builders<BsonDocument>.Filter.Eq(key, value),
+                    Builders<BsonDocument>.Filter.ElemMatch(
+                        arrayKey,
+                        Builders<BsonDocument>.Filter.Eq(elementKey, elementValue)
+                    )
+                );
+
+                // Cercar el document
+                var result = await collection.Find(filter).FirstOrDefaultAsync();
+                return result != null;
+            }
+            catch (MongoException ex)
+            {
+                Logger.DataBaseLogger.Error($"MongoDB error: {ex.Message}");
+                throw; // Llança l'error per a gestió superior
+            }
+            catch (Exception ex)
+            {
+                Logger.DataBaseLogger.Error($"Unexpected error: {ex.Message}");
+                throw;
+            }
+        }
+
+
     }
 }
