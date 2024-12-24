@@ -6,10 +6,10 @@ using System.Linq;
 using System.Security.Policy;
 using System.Text;
 using System.Threading.Tasks;
-using chatserver.DDBB;
 using chatserver.authentication;
 using Microsoft.IdentityModel.Tokens;
 using chatserver.server.APIs;
+using System.Text.Json;
 
 namespace chatserver.authentication
 {
@@ -46,6 +46,83 @@ namespace chatserver.authentication
                 };
             }
         }
+
+        public async static Task<ExitStatus> UpdateSession(string username, TokensStruct tokens)
+        {
+            // TODO: COMPLETAR
+            var ddbb = DDBBHandler.Instance;
+            await ddbb.delete("sessions", "username", username);
+
+            // add new refresh token
+            var jsonDocument = new
+            {
+                username = username,
+                refreshToken = tokens.refreshToken,
+                accessToken = tokens.accessToken
+            };
+            var jsonElement = JsonDocument.Parse(JsonSerializer.Serialize(jsonDocument)).RootElement;
+            await ddbb.write("sessions", jsonElement);
+
+            return new ExitStatus();
+        }
+
+        public async static Task<ExitStatus> GetUsernameFromAccessToken(string accessToken)
+        {
+            try
+            {
+                // Obtenir la instància de DDBBHandler
+                DDBBHandler ddbbHandler = DDBBHandler.Instance;
+
+                // Consultar la base de dades per trobar el document amb l'accessToken donat
+                var result = await ddbbHandler.RetrieveField(
+                    collectionName: "sessions",
+                    key: "accessToken",
+                    value: accessToken,
+                    fieldToRetrieve: "username"
+                );
+
+                // Comprovar el resultat de la cerca
+                if (result.status == ExitCodes.OK && result.result != null)
+                {
+                    // Retornar l'ExitStatus amb el username trobat
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.OK,
+                        message = "Username retrieved successfully.",
+                        result = result.result
+                    };
+                }
+                else if (result.status == ExitCodes.NOT_FOUND)
+                {
+                    // No s'ha trobat cap document amb l'accessToken
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.NOT_FOUND,
+                        message = "Access token not found."
+                    };
+                }
+                else
+                {
+                    // Error desconegut
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.ERROR,
+                        message = "An error occurred while retrieving the username."
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                // Gestió d'errors inesperats
+                Logger.DataBaseLogger.Error($"[GetUsernameFromAccessToken] Unexpected error: {ex.Message}");
+                return new ExitStatus
+                {
+                    status = ExitCodes.EXCEPTION,
+                    exception = ex.Message
+                };
+            }
+        }
+
 
         public async static Task<ExitStatus> RefreshSession(string token, string username)
         {

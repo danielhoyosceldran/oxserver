@@ -5,6 +5,8 @@ using System.Text.Json;
 using System.Text;
 using chatserver.authentication;
 using chatserver.DDBB;
+using log4net.Util;
+using System.Reflection.Metadata;
 
 namespace chatserver.server
 {
@@ -99,6 +101,10 @@ namespace chatserver.server
                     if (resources.Count == 0)
                     {
                         SendJsonResponse(response, JsonSerializer.Serialize(new { status = true }));
+                    }
+                    else if (resources[0] == "user")
+                    {
+                        await HandleUserRequests(request, response, resources.Skip(1).ToList());
                     }
                     else if (resources[0] == "signout")
                     {
@@ -278,7 +284,7 @@ namespace chatserver.server
                 string username = (string)result.result!;
 
                 // TODO
-                // Crec que la part de guardar això a la bbdd no hauria de ser aquí
+                // Crec que la part de guardar això a la bbdd no hauria de ser aquí 
                 // delete last refresh token (if exists)
                 await ddbb.delete("sessions", "username", username);
 
@@ -286,7 +292,8 @@ namespace chatserver.server
                 var jsonDocument = new
                 {
                     username = username,
-                    refreshToken = tokens.refreshToken
+                    refreshToken = tokens.refreshToken,
+                    accessToken = tokens.accessToken
                 };
                 var jsonElement = JsonDocument.Parse(JsonSerializer.Serialize(jsonDocument)).RootElement;
                 await ddbb.write("sessions", jsonElement);
@@ -317,6 +324,68 @@ namespace chatserver.server
             AddCookie(response, "accessToken", "", 1);
 
             return await SessionHandler.SignOut("");
+        }
+
+        private static async Task<ExitStatus> HandleUserRequests(HttpListenerRequest request, HttpListenerResponse response, List<string> resources)
+        {
+            try
+            {
+                if (resources[0] == null)
+                {
+                    return new ExitStatus()
+                    {
+                        status = ExitCodes.BAD_REQUEST,
+                        message = "HTTP /user need more options"
+                    };
+                }
+
+                var sessionCookie = request.Cookies["accessToken"];
+                var accessToken = sessionCookie!.Value;
+                ExitStatus usernameResult = await SessionHandler.GetUsernameFromAccessToken(accessToken);
+                if (usernameResult.status == ExitCodes.ERROR)
+                {
+                    throw new Exception(usernameResult.message);
+                }
+                string username = (string)usernameResult.result!;
+                ExitStatus userReuslt = new ExitStatus()
+                {
+                    message = ""
+                };
+                if (resources[0] == "contacts")
+                {
+                    if (request.HttpMethod == "GET")
+                    {
+                        UsersHandler users = UsersHandler.Instance;
+                        userReuslt = await users.RetrieveContacts(username);
+                    }
+                    else if (request.HttpMethod == "PATCH")
+                    {
+
+                    }
+                    else
+                    {
+
+                    }
+                    // TODO : gestionar quan es retorna un error
+                    response.StatusCode = (int)HttpStatusCode.OK;
+                    SendJsonResponse(response, JsonSerializer.Serialize(new
+                    {
+                        status = true,
+                        message = userReuslt.message,
+                        contacts = usernameResult.status == ExitCodes.OK ? userReuslt.result : null,
+                    }));
+                }
+
+                return new ExitStatus();
+            }
+            catch (Exception ex)
+            {
+                return new ExitStatus()
+                {
+                    status = ExitCodes.ERROR,
+                    message = ex.Message
+                };
+            }
         }
 
         private static ExitStatus GetValueFromCookie(HttpListenerRequest request, string cookieName)

@@ -40,7 +40,16 @@ namespace chatserver.server.APIs
                 }
 
                 DDBBHandler dDBBHandler = DDBBHandler.Instance;
-                await dDBBHandler.write("users", root);
+                var mutableData = JsonSerializer.Deserialize<Dictionary<string, object>>(root.GetRawText())!;
+
+                mutableData.Add("email", "");
+                mutableData.Add("contacts", new List<object>());
+                mutableData.Add("groups", new List<object>());
+                mutableData.Add("lastSeen", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                mutableData.Add("isOnline", true);
+
+                string updatedJson = JsonSerializer.Serialize(mutableData);
+                await dDBBHandler.write("users", JsonDocument.Parse(updatedJson).RootElement);
 
                 return new ExitStatus()
                 {
