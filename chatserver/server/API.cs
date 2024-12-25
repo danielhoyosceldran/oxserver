@@ -288,16 +288,6 @@ namespace chatserver.server
                 // delete last refresh token (if exists)
                 await ddbb.delete("sessions", "username", username);
 
-                // add new refresh token
-                var jsonDocument = new
-                {
-                    username = username,
-                    refreshToken = tokens.refreshToken,
-                    accessToken = tokens.accessToken
-                };
-                var jsonElement = JsonDocument.Parse(JsonSerializer.Serialize(jsonDocument)).RootElement;
-                await ddbb.write("sessions", jsonElement);
-
                 AddCookie(response, "accessToken", tokens.accessToken, 15);
                 AddCookie(response, "userName", username, 0);
                 response.StatusCode = (int)HttpStatusCode.OK;
@@ -367,7 +357,7 @@ namespace chatserver.server
 
                     }
                     // TODO : gestionar quan es retorna un error
-                    response.StatusCode = (int)HttpStatusCode.OK;
+                    response.StatusCode = usernameResult.status == ExitCodes.OK ? (int)HttpStatusCode.OK : (int)HttpStatusCode.InternalServerError;
                     SendJsonResponse(response, JsonSerializer.Serialize(new
                     {
                         status = true,

@@ -152,6 +152,52 @@ namespace chatserver.DDBB
             }
         }
 
+        public async Task<ExitStatus> UpdateField(string collectionName, string key, string value, string fieldToUpdate, object newValue)
+        {
+            try
+            {
+                // Accedeix a la base de dades i la col·lecció
+                var database = client.GetDatabase(DATA_BASE_NAME);
+                var collection = database.GetCollection<BsonDocument>(collectionName);
+
+                // Filtra el document basant-se en el key i el value
+                var filter = Builders<BsonDocument>.Filter.Eq(key, value);
+
+                // Actualitza el camp específic amb el nou valor
+                var update = Builders<BsonDocument>.Update.Set(fieldToUpdate, newValue);
+
+                // Executa l'operació d'actualització
+                var result = await collection.UpdateOneAsync(filter, update);
+
+                // Comprova si s'ha actualitzat
+                if (result.ModifiedCount > 0)
+                {
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.OK,
+                        message = $"Field '{fieldToUpdate}' updated successfully."
+                    };
+                }
+                else
+                {
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.NOT_FOUND,
+                        message = $"Document with {key}={value} not found."
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                return new ExitStatus
+                {
+                    status = ExitCodes.EXCEPTION,
+                    exception = ex.Message
+                };
+            }
+        }
+
+
         public async Task<ExitStatus> AddToArrayField(string collectionName, string key, string value, string arrayField, JsonElement newItem)
         {
             try
