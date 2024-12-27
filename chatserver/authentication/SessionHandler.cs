@@ -185,6 +185,7 @@ namespace chatserver.authentication
             TokensStruct tokens = new TokensStruct();
             tokens.accessToken = TokenProvider.Instance.GenerateToken(userId, username);
             tokens.refreshToken = TokenProvider.Instance.GenerateRefreshToken();
+
             var ddbb = DDBBHandler.Instance;
             var jsonDocument = new
             {
@@ -194,6 +195,7 @@ namespace chatserver.authentication
             };
             var jsonElement = JsonDocument.Parse(JsonSerializer.Serialize(jsonDocument)).RootElement;
             await ddbb.write("sessions", jsonElement);
+
             return new ExitStatus()
             {
                 result = tokens

@@ -279,14 +279,10 @@ namespace chatserver.server
             if (result.status == ExitCodes.OK)
             {
                 //int sessionId = SessionHandler.GetSessionsCounter();
-                TokensStruct tokens = (TokensStruct)(await SessionHandler.GetTokens("")).result!; // TODO - complete
                 var ddbb = DDBBHandler.Instance;
                 string username = (string)result.result!;
-
-                // TODO
-                // Crec que la part de guardar això a la bbdd no hauria de ser aquí 
-                // delete last refresh token (if exists)
                 await ddbb.delete("sessions", "username", username);
+                TokensStruct tokens = (TokensStruct)(await SessionHandler.GetTokens(username)).result!; // TODO - complete
 
                 AddCookie(response, "accessToken", tokens.accessToken, 15);
                 AddCookie(response, "userName", username, 0);
