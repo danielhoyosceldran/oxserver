@@ -285,7 +285,7 @@ namespace chatserver.server
                 TokensStruct tokens = (TokensStruct)(await SessionHandler.GetTokens(username)).result!; // TODO - complete
 
                 AddCookie(response, "accessToken", tokens.accessToken, 15);
-                AddCookie(response, "userName", username, 0);
+                AddCookie(response, "username", username, 0, false);
                 response.StatusCode = (int)HttpStatusCode.OK;
                 SendJsonResponse(response, JsonSerializer.Serialize(new { status = true, refreshToken = tokens.refreshToken, message = result.message }));
             }
@@ -303,6 +303,7 @@ namespace chatserver.server
             var sessionCookie = request.Cookies["accessToken"];
             if (sessionCookie == null) return new ExitStatus { status = ExitCodes.BAD_REQUEST };
 
+            // TODO -> S'ha de fer via accessToken no per la cookie
             var username = request.Cookies["username"];
             if (username == null) return new ExitStatus { status = ExitCodes.BAD_REQUEST };
 
