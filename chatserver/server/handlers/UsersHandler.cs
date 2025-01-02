@@ -45,6 +45,7 @@ namespace chatserver.server.APIs
                 mutableData.Add("email", "");
                 mutableData.Add("contacts", new List<object>());
                 mutableData.Add("groups", new List<object>());
+                mutableData.Add("conversations", new List<object>());
                 mutableData.Add("lastSeen", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
                 mutableData.Add("isOnline", true);
 

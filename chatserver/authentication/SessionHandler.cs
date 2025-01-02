@@ -123,10 +123,10 @@ namespace chatserver.authentication
             }
         }
 
-        private static async Task UpdateAccessToken(string accessToken, string username)
+        private static async Task UpdateAccessTokenInDdbb(string accessToken, string username)
         {
             var dbHandler = DDBBHandler.Instance;
-            string collectionName = "session";
+            string collectionName = "sessions";
             string key = "username";
             string fieldToUpdate = "accessToken";
            
@@ -155,7 +155,7 @@ namespace chatserver.authentication
                 result.status = ExitCodes.OK;
                 result.message = "Refresh Token valid";
                 string accessToken = TokenProvider.Instance.GenerateToken(userId, username);
-                await UpdateAccessToken(accessToken, username);
+                await UpdateAccessTokenInDdbb(accessToken, username);
                 result.result = accessToken;
             }
             return result;
@@ -186,15 +186,7 @@ namespace chatserver.authentication
             tokens.accessToken = TokenProvider.Instance.GenerateToken(userId, username);
             tokens.refreshToken = TokenProvider.Instance.GenerateRefreshToken();
 
-            var ddbb = DDBBHandler.Instance;
-            var jsonDocument = new
-            {
-                username = username,
-                refreshToken = tokens.refreshToken,
-                accessToken = tokens.accessToken
-            };
-            var jsonElement = JsonDocument.Parse(JsonSerializer.Serialize(jsonDocument)).RootElement;
-            await ddbb.write("sessions", jsonElement);
+            await UpdateSession(username, tokens);
 
             return new ExitStatus()
             {
