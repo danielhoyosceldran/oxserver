@@ -346,7 +346,19 @@ namespace chatserver.server
                     }
                     else if (request.HttpMethod == "PATCH")
                     {
+                        // add contact
+                        // retrieve contact username from body
+                        var bodyResult = CheckForBody(request, response);
+                        if (bodyResult.status != ExitCodes.OK) return bodyResult;
 
+                        string data = (string)bodyResult.result!;
+                        JsonDocument parsedData = JsonDocument.Parse(data);
+                        var root = parsedData.RootElement;
+
+                        string? contactUsername = root.GetProperty("contactUsername").GetString();
+
+                        UsersHandler users = UsersHandler.Instance;
+                        userReuslt = await users.AddContactOrGroup(username, contactUsername!);
                     }
                     else
                     {
@@ -386,7 +398,7 @@ namespace chatserver.server
 
         private static ExitStatus CheckForBody(HttpListenerRequest request, HttpListenerResponse response)
         {
-            if (request.HttpMethod != "POST" || request.ContentLength64 == 0)
+            if (request.ContentLength64 == 0)
             {
                 response.StatusCode = (int)HttpStatusCode.BadRequest;
                 SendJsonResponse(response, JsonSerializer.Serialize(new { error = "Missing body" }));
@@ -408,7 +420,7 @@ namespace chatserver.server
         private static void AddCorsHeaders(HttpListenerResponse response, HttpListenerRequest request)
         {
             response.AddHeader("Access-Control-Allow-Origin", request.Headers["Origin"] ?? "*");
-            response.AddHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
+            response.AddHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS");
             response.AddHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
             response.AddHeader("Access-Control-Allow-Credentials", "true");
         }

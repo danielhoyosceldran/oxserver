@@ -216,16 +216,18 @@ namespace chatserver.server.APIs
                 message = "Contact already added",
             };
 
+            // null fields do not appear in the final json
             var options = new JsonSerializerOptions
             {
                 DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
             };
 
+
             var newField = JsonDocument.Parse(
                 JsonSerializer.Serialize(new
                 {
                     name = name,
-                    usernameOrId = isGroup ? null : usernameOrId,
+                    username = isGroup ? null : usernameOrId,
                     groupId = isGroup ? usernameOrId : null
                 }, options)
             ).RootElement;
