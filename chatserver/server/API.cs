@@ -216,6 +216,7 @@ namespace chatserver.server
         {
             Logger.ConsoleLogger.Debug("[HandleRefreshToken] - Start");
             var authHeader = request.Headers["Authorization"];
+            // TODO -> S'ha de fer per access token
             ExitStatus usernameResult = GetValueFromCookie(request, "username");
             if (usernameResult.status != ExitCodes.OK)
             {
@@ -302,12 +303,11 @@ namespace chatserver.server
         {
             var sessionCookie = request.Cookies["accessToken"];
             if (sessionCookie == null) return new ExitStatus { status = ExitCodes.BAD_REQUEST };
+            ExitStatus usernameResult = await SessionHandler.GetUsernameFromAccessToken(sessionCookie.Value);
+            if (usernameResult.status != ExitCodes.OK) return new ExitStatus { status = ExitCodes.BAD_REQUEST };
+            string username = (string)usernameResult.result!;
 
-            // TODO -> S'ha de fer via accessToken no per la cookie
-            var username = request.Cookies["username"];
-            if (username == null) return new ExitStatus { status = ExitCodes.BAD_REQUEST };
-
-            _ = await SessionHandler.deleteSession(username.Value);
+            _ = await SessionHandler.deleteSession(username);
             AddCookie(response, "accessToken", "", 1);
 
             return await SessionHandler.SignOut("");

@@ -3,6 +3,7 @@ using chatserver.utils;
 using System.Text.Json;
 using chatserver.authentication;
 using System.Security.Policy;
+using System.Formats.Asn1;
 
 namespace chatserver.server.APIs
 {
@@ -85,6 +86,17 @@ namespace chatserver.server.APIs
             };
         }
 
+        public async Task<string> getUserPassword(string username)
+        {
+            DDBBHandler ddbb = DDBBHandler.Instance;
+            ExitStatus passwordResult = await ddbb.RetrieveField(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.PASSWORD);
+            if (passwordResult.status != ExitCodes.OK)
+            {
+                throw new Exception("Password problems");
+            }
+            return (string)passwordResult.result!;
+        }
+
         public async Task<ExitStatus> SignInUser(string data)
         {
             try
@@ -95,6 +107,16 @@ namespace chatserver.server.APIs
                 string? username = root.GetProperty(UsersDDBBStructure.USERNAME).GetString();
                 string? password = root.GetProperty(UsersDDBBStructure.PASSWORD).GetString();
 
+                // TODO: CHECK PASSWORD
+                string storedPassword = await getUserPassword(username!);
+                if (storedPassword != password)
+                {
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.ERROR,
+                        message = "Password is not correct"
+                    };
+                }
 
                 Logger.UsersLogger.Debug("[login user] start - " + username);
                 Logger.ConsoleLogger.Debug("[UsersAPI - loginUser] - Data rebuda: " + data);
