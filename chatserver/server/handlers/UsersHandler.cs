@@ -107,17 +107,6 @@ namespace chatserver.server.APIs
                 string? username = root.GetProperty(UsersDDBBStructure.USERNAME).GetString();
                 string? password = root.GetProperty(UsersDDBBStructure.PASSWORD).GetString();
 
-                // TODO: CHECK PASSWORD
-                string storedPassword = await getUserPassword(username!);
-                if (storedPassword != password)
-                {
-                    return new ExitStatus
-                    {
-                        status = ExitCodes.ERROR,
-                        message = "Password is not correct"
-                    };
-                }
-
                 Logger.UsersLogger.Debug("[login user] start - " + username);
                 Logger.ConsoleLogger.Debug("[UsersAPI - loginUser] - Data rebuda: " + data);
 
@@ -127,6 +116,16 @@ namespace chatserver.server.APIs
                     {
                         status = ExitCodes.NOT_FOUND,
                         message = "This user does not exist."
+                    };
+                }
+
+                string storedPassword = await getUserPassword(username!);
+                if (storedPassword != password)
+                {
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.ERROR,
+                        message = "Password is not correct"
                     };
                 }
 
