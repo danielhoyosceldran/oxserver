@@ -216,16 +216,12 @@ namespace chatserver.server
         {
             Logger.ConsoleLogger.Debug("[HandleRefreshToken] - Start");
             var authHeader = request.Headers["Authorization"];
-            // TODO -> S'ha de fer per access token
-            ExitStatus usernameResult = GetValueFromCookie(request, "username");
-            if (usernameResult.status != ExitCodes.OK)
-            {
-                Logger.ConsoleLogger.Debug("[HandleRefreshToken] - No username");
-                // TODO
-                // Haurà de retornar un error conforme està unauthorized.
-                // necessitem el username. Si no està, l'haurem de recuperar mitjançant un inici de sessió
-            }
-            string username = usernameResult.status == ExitCodes.OK ? (string)usernameResult.result! : "";
+
+            var sessionCookie = request.Cookies["accessToken"];
+            if (sessionCookie == null) return new ExitStatus { status = ExitCodes.BAD_REQUEST };
+            ExitStatus usernameResult = await SessionHandler.GetUsernameFromAccessToken(sessionCookie.Value);
+            if (usernameResult.status != ExitCodes.OK) return new ExitStatus { status = ExitCodes.BAD_REQUEST, message="No session stored with this username" };
+            string username = (string)usernameResult.result!;
 
             ExitStatus authHeaderResult = await CheckAuthHeader(authHeader!, username);
 
@@ -304,7 +300,7 @@ namespace chatserver.server
             var sessionCookie = request.Cookies["accessToken"];
             if (sessionCookie == null) return new ExitStatus { status = ExitCodes.BAD_REQUEST };
             ExitStatus usernameResult = await SessionHandler.GetUsernameFromAccessToken(sessionCookie.Value);
-            if (usernameResult.status != ExitCodes.OK) return new ExitStatus { status = ExitCodes.BAD_REQUEST };
+            if (usernameResult.status != ExitCodes.OK) return new ExitStatus { status = ExitCodes.BAD_REQUEST, message = "No session stored with this username" };
             string username = (string)usernameResult.result!;
 
             _ = await SessionHandler.deleteSession(username);
