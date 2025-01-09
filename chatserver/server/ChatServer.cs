@@ -31,6 +31,8 @@ namespace chatserver.server
                 // Comprovar si la sol·licitud és una sol·licitud WebSocket
                 if (context.Request.IsWebSocketRequest)
                 {
+                    Logger.WebSocketsServerLogger.Info("Socket request");
+                    Logger.ConsoleLogger.Info("Socket request");
                     // Gestionar connexió WebSocket
                     // La gestió es fa a un thread a part per a poder seguir acceptant connexions
                     // TODO - Mirar si quest wharning (el de que cal un "await")
