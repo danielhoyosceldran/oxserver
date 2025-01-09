@@ -217,6 +217,8 @@ namespace chatserver.server
             Logger.ConsoleLogger.Debug("[HandleRefreshToken] - Start");
             var authHeader = request.Headers["Authorization"];
 
+
+            // TODO: El refresh token aquí no existeix. Ha caducat. He de trobar un altre forma de trobar el username.
             var sessionCookie = request.Cookies["accessToken"];
             if (sessionCookie == null) return new ExitStatus { status = ExitCodes.BAD_REQUEST };
             ExitStatus usernameResult = await SessionHandler.GetUsernameFromAccessToken(sessionCookie.Value);

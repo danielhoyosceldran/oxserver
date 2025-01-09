@@ -1,6 +1,9 @@
 ﻿using System.Net.WebSockets;
 using System.Net;
 using System.Text;
+using System.Text.Json;
+using MongoDB.Bson;
+using System;
 
 namespace chatserver.server
 {
@@ -90,11 +93,22 @@ namespace chatserver.server
                         string clientMessage = Encoding.UTF8.GetString(buffer, 0, result.Count);
                         Console.WriteLine("Message: " + clientMessage);
 
-                        // Send reply
-                        foreach (KeyValuePair<string, WebSocket> ws in webSockets)
+                        using JsonDocument doc = JsonDocument.Parse(clientMessage);
+                        JsonElement root = doc.RootElement;
+
+                        string? type = root.GetProperty("type").GetString();
+
+                        if (type == "text")
                         {
-                            sendMessage(ws.Value, clientMessage, ws.Key);
+                            string? message = root.GetProperty("text").GetString();
+                            // Send reply
+                            foreach (KeyValuePair<string, WebSocket> ws in webSockets)
+                            {
+                                SendQueuedMessage(ws.Value, message!);
+                            }
                         }
+
+
 
 
                         // Clean the buffer to recieve more messages
@@ -123,6 +137,21 @@ namespace chatserver.server
             string responseMessage = from + ": " + clientMessage;
             byte[] responseBytes = Encoding.UTF8.GetBytes(responseMessage);
             await webSocket.SendAsync(new ArraySegment<byte>(responseBytes), WebSocketMessageType.Text, true, CancellationToken.None);
+        }
+
+        private static void SendQueuedMessage(WebSocket webSocket, string message)
+        {
+            // Implementa una cua per assegurar que només es realitza un enviament alhora
+            lock (webSocket)
+            {
+                byte[] messageBytes = Encoding.UTF8.GetBytes(message);
+                webSocket.SendAsync(
+                    new ArraySegment<byte>(messageBytes),
+                    WebSocketMessageType.Text,
+                    true,
+                    CancellationToken.None
+                );
+            }
         }
     }
 }
