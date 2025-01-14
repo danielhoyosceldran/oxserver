@@ -123,6 +123,64 @@ namespace chatserver.authentication
             }
         }
 
+        public async static Task<ExitStatus> GetUsernameFromRefreshToken(string refreshToken)
+        {
+            try
+            {
+                // Obtenir la instància de DDBBHandler
+                DDBBHandler ddbbHandler = DDBBHandler.Instance;
+
+                // Consultar la base de dades per trobar el document amb l'accessToken donat
+                var result = await ddbbHandler.RetrieveField(
+                    collectionName: "sessions",
+                    key: "refreshToken",
+                    value: refreshToken,
+                    fieldToRetrieve: "username"
+                );
+
+                // Comprovar el resultat de la cerca
+                if (result.status == ExitCodes.OK && result.result != null)
+                {
+                    // Retornar l'ExitStatus amb el username trobat
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.OK,
+                        message = "Username retrieved successfully.",
+                        result = result.result
+                    };
+                }
+                else if (result.status == ExitCodes.NOT_FOUND)
+                {
+                    // No s'ha trobat cap document amb l'accessToken
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.NOT_FOUND,
+                        message = "Access token not found."
+                    };
+                }
+                else
+                {
+                    // Error desconegut
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.ERROR,
+                        message = "An error occurred while retrieving the username."
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                // Gestió d'errors inesperats
+                Logger.DataBaseLogger.Error($"[GetUsernameFromAccessToken] Unexpected error: {ex.Message}");
+                return new ExitStatus
+                {
+                    status = ExitCodes.EXCEPTION,
+                    exception = ex.Message
+                };
+            }
+        }
+
+
         private static async Task UpdateAccessTokenInDdbb(string accessToken, string username)
         {
             var dbHandler = DDBBHandler.Instance;

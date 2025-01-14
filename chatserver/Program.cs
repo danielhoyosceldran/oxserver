@@ -15,7 +15,7 @@ namespace chatserver
         static async Task Main(string[] args)
         {
             _ = API.Start();
-            _ = ChatServer.start();
+            _ = ChatServer.Start();
             await UsersHandler.Instance.AddContactOrGroup("danielfurats", "guest0");
             await UsersHandler.Instance.AddContactOrGroup("danielfurats", "#gId-ff9901");
 

@@ -160,68 +160,89 @@ namespace chatserver.server
         /// <returns>message to send to user. the "result" is the HTTP.status code</returns>
         private static async Task<ExitStatus> CheckAuthHeader(string authHeader, string username)
         {
-            Logger.ConsoleLogger.Debug("[checkAuthHeader] - Start");
+            Logger.ConsoleLogger.Debug("[CheckAuthHeader] - Start");
+
             if (string.IsNullOrEmpty(authHeader))
             {
-                // Si el header no està present, retorna un error
+                Logger.ConsoleLogger.Debug("[CheckAuthHeader] - ExitStatus - Unauthorized: Authorization header missing");
                 return new ExitStatus
                 {
                     status = ExitCodes.UNAUTHORIZED,
                     message = "Authorization header missing",
                 };
             }
-            else // té header
+
+            if (!authHeader.StartsWith("Bearer "))
             {
-                if (authHeader.StartsWith("Bearer "))
+                Logger.ConsoleLogger.Debug("[CheckAuthHeader] - ExitStatus - Bad Request: Invalid authorization format");
+                return new ExitStatus
                 {
-                    string token = authHeader.Substring("Bearer ".Length);
-
-                    ExitStatus refreshTokenResult = await SessionHandler.RefreshSession(token, username);
-                    bool isValid = refreshTokenResult.status == ExitCodes.OK;
-
-                    if (isValid)
-                    {
-                        Logger.ConsoleLogger.Debug("[checkAuthHeader] - End - Ok");
-                        Logger.ConsoleLogger.Debug($"[checkAuthHeader] - result: {(string)refreshTokenResult.result!}");
-                        return new ExitStatus
-                        {
-                            status = ExitCodes.OK,
-                            message = "Valid token",
-                            result = (string)refreshTokenResult.result!,
-                        };
-                    }
-                    else
-                    {
-                        Logger.ConsoleLogger.Debug("[checkAuthHeader] - End - unauthorized");
-                        return new ExitStatus
-                        {
-                            status = ExitCodes.UNAUTHORIZED,
-                            message = "Invalid token",
-                        };
-                    }
-                }
-                else
-                {
-                    Logger.ConsoleLogger.Debug("[checkAuthHeader] - End - Bad request");
-                    return new ExitStatus
-                    {
-                        status = ExitCodes.BAD_REQUEST,
-                        message = "Invalid authorization format",
-                    };
-                }
+                    status = ExitCodes.BAD_REQUEST,
+                    message = "Invalid authorization format",
+                };
             }
+
+            string token = authHeader.Substring("Bearer ".Length);
+            ExitStatus refreshTokenResult = await SessionHandler.RefreshSession(token, username);
+
+            if (refreshTokenResult.status == ExitCodes.OK)
+            {
+                Logger.ConsoleLogger.Debug("[CheckAuthHeader] - End - Ok");
+                Logger.ConsoleLogger.Debug($"[CheckAuthHeader] - Result: {(string)refreshTokenResult.result!}");
+                return new ExitStatus
+                {
+                    status = ExitCodes.OK,
+                    message = "Valid token",
+                    result = (string)refreshTokenResult.result!,
+                };
+            }
+
+            Logger.ConsoleLogger.Debug("[CheckAuthHeader] - End - Unauthorized: Invalid token");
+            return new ExitStatus
+            {
+                status = ExitCodes.UNAUTHORIZED,
+                message = "Invalid token",
+            };
         }
+
 
         private static async Task<ExitStatus> HandleRefreshToken(HttpListenerRequest request, HttpListenerResponse response)
         {
             Logger.ConsoleLogger.Debug("[HandleRefreshToken] - Start");
             var authHeader = request.Headers["Authorization"];
 
+            if (string.IsNullOrEmpty(authHeader))
+            {
+                response.StatusCode = (int)HttpStatusCode.Unauthorized;
+                SendJsonResponse(response, JsonSerializer.Serialize(new
+                {
+                    status = false
+                }));
+                return new ExitStatus
+                {
+                    status = ExitCodes.UNAUTHORIZED,
+                    message = "Authorization header missing",
+                };
+            }
 
-            // TODO: El refresh token aquí no existeix. Ha caducat. He de trobar un altre forma de trobar el username.
-            var sessionCookie = request.Cookies["accessToken"];
-            if (sessionCookie == null) return new ExitStatus { status = ExitCodes.BAD_REQUEST };
-            ExitStatus usernameResult = await SessionHandler.GetUsernameFromAccessToken(sessionCookie.Value);
+            if (!authHeader.StartsWith("Bearer "))
+            {
+                Logger.ConsoleLogger.Debug("[CheckAuthHeader] - ExitStatus - Bad Request: Invalid authorization format");
+                response.StatusCode = (int)HttpStatusCode.Unauthorized;
+                SendJsonResponse(response, JsonSerializer.Serialize(new
+                {
+                    status = false
+                }));
+                return new ExitStatus
+                {
+                    status = ExitCodes.BAD_REQUEST,
+                    message = "Invalid authorization format",
+                };
+            }
+
+            string refreshToken = authHeader.Substring("Bearer ".Length);
+
+            ExitStatus usernameResult = await SessionHandler.GetUsernameFromRefreshToken(refreshToken);
             if (usernameResult.status != ExitCodes.OK) return new ExitStatus { status = ExitCodes.BAD_REQUEST, message="No session stored with this username" };
             string username = (string)usernameResult.result!;
 
