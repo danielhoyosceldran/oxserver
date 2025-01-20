@@ -5,8 +5,6 @@ using System.Text.Json;
 using System.Text;
 using chatserver.authentication;
 using chatserver.DDBB;
-using log4net.Util;
-using System.Reflection.Metadata;
 
 namespace chatserver.server
 {
@@ -353,7 +351,7 @@ namespace chatserver.server
                     throw new Exception(usernameResult.message);
                 }
                 string username = (string)usernameResult.result!;
-                ExitStatus userReuslt = new ExitStatus()
+                ExitStatus userResult = new ExitStatus()
                 {
                     message = ""
                 };
@@ -362,7 +360,7 @@ namespace chatserver.server
                     if (request.HttpMethod == "GET")
                     {
                         UsersHandler users = UsersHandler.Instance;
-                        userReuslt = await users.RetrieveContacts(username);
+                        userResult = await users.RetrieveContacts(username);
                     }
                     else if (request.HttpMethod == "PATCH")
                     {
@@ -378,7 +376,7 @@ namespace chatserver.server
                         string? contactUsername = root.GetProperty("contactUsername").GetString();
 
                         UsersHandler users = UsersHandler.Instance;
-                        userReuslt = await users.AddContactOrGroup(username, contactUsername!);
+                        userResult = await users.AddContactOrGroup(username, contactUsername!);
                     }
                     else
                     {
@@ -388,10 +386,25 @@ namespace chatserver.server
                     response.StatusCode = usernameResult.status == ExitCodes.OK ? (int)HttpStatusCode.OK : (int)HttpStatusCode.InternalServerError;
                     SendJsonResponse(response, JsonSerializer.Serialize(new
                     {
-                        status = true,
-                        message = userReuslt.message,
-                        contacts = usernameResult.status == ExitCodes.OK ? userReuslt.result : null,
+                        status = userResult.status == ExitCodes.OK ? true : false,
+                        message = userResult.message,
+                        contacts = usernameResult.status == ExitCodes.OK ? userResult.result : null,
                     }));
+                }
+                else if (resources[0] == "messages")
+                {
+                    if (request.HttpMethod == "GET")
+                    {
+
+                    }
+                    else if (request.HttpMethod == "PATCH")
+                    {
+
+                    }
+                    else
+                    {
+
+                    }
                 }
 
                 return new ExitStatus();

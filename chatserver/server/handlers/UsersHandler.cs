@@ -51,7 +51,7 @@ namespace chatserver.server.APIs
                 mutableData.Add("isOnline", true);
 
                 string updatedJson = JsonSerializer.Serialize(mutableData);
-                await dDBBHandler.write("users", JsonDocument.Parse(updatedJson).RootElement);
+                ExitStatus writeResult = await dDBBHandler.write("users", JsonDocument.Parse(updatedJson).RootElement);
 
                 return new ExitStatus()
                 {
@@ -161,7 +161,12 @@ namespace chatserver.server.APIs
                 DDBBHandler dDBBHandler = DDBBHandler.Instance;
                 ExitStatus result = await dDBBHandler.find(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username);
 
-                return result;
+                return new ExitStatus
+                {
+                    status = result.status,
+                    result = result.result,
+                    message = result.status == ExitCodes.OK ? "User exist" : "User do not exist",
+                };
             }
             catch (Exception ex)
             {
