@@ -376,7 +376,9 @@ namespace chatserver.server
                         string? contactUsername = root.GetProperty("contactUsername").GetString();
 
                         UsersHandler users = UsersHandler.Instance;
-                        userResult = await users.AddContactOrGroup(username, contactUsername!);
+                        // TODO: [in next versions] send friend request. If accepted: add.
+                        userResult = await users.AddContactHandler(username, contactUsername!);
+                        
                     }
                     else
                     {
@@ -390,6 +392,21 @@ namespace chatserver.server
                         message = userResult.message,
                         contacts = usernameResult.status == ExitCodes.OK ? userResult.result : null,
                     }));
+                }
+                else if (resources[0] == "groups")
+                {
+                    if (request.HttpMethod == "GET")
+                    {
+
+                    }
+                    else if (request.HttpMethod == "PATCH")
+                    {
+
+                    }
+                    else
+                    {
+
+                    }
                 }
                 else if (resources[0] == "messages")
                 {

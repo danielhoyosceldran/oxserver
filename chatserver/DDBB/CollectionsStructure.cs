@@ -13,5 +13,6 @@ namespace chatserver.DDBB
         public static readonly string PASSWORD = "password";
         public static readonly string CONTACTS = "contacts";
         public static readonly string GROUPS = "groups";
+        public static readonly string CONVERSATIONS = "conversations";
     }
 }

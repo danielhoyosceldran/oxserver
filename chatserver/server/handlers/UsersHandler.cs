@@ -4,6 +4,8 @@ using System.Text.Json;
 using chatserver.authentication;
 using System.Security.Policy;
 using System.Formats.Asn1;
+using Microsoft.Extensions.Options;
+using System.Xml.Linq;
 
 namespace chatserver.server.APIs
 {
@@ -213,7 +215,8 @@ namespace chatserver.server.APIs
         }
 
         // Contacts
-        public async Task<ExitStatus> AddContactOrGroup(string username, string usernameOrId)
+
+        private async Task<ExitStatus> AddContactOrGroup(string username, string usernameOrId)
         {
             DDBBHandler ddbb = DDBBHandler.Instance;
 
@@ -258,11 +261,40 @@ namespace chatserver.server.APIs
                 }, options)
             ).RootElement;
 
-            ExitStatus addResult = await ddbb.AddToArrayField(DB_COLLECTION_NAME, "username", username, 
-                isGroup 
-                ? UsersDDBBStructure.GROUPS 
+            ExitStatus addResult = await ddbb.AddToArrayField(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username,
+                isGroup
+                ? UsersDDBBStructure.GROUPS
                 : UsersDDBBStructure.CONTACTS, newField
             );
+
+            return addResult;
+        }
+
+        public async Task<ExitStatus> AddContactHandler(string username, string contactUsername, bool bidirectional = true)
+        {
+            // TDOD: In future versions we must send a friend request.
+
+            ExitStatus addResult = await AddContactOrGroup(username, contactUsername);
+
+            if (addResult.status == ExitCodes.OK)
+            {
+                ExitStatus createConversationResult = await CreateConversation(username, contactUsername);
+
+                string conversationId;
+                if (createConversationResult.status == ExitCodes.OK)
+                {
+                    conversationId = (string)createConversationResult.result!;
+                    ExitStatus addConversationResult = await AddConversationToUser(username, contactUsername, conversationId);
+                    if (bidirectional)
+                    {
+                        // TODO: Instead of "_" we should control the case that this second actions go wrong.
+                        // So we should delete the created entites firstly and then return an error to the user.
+                        _ = await AddContactOrGroup(contactUsername, username);
+                        _ = await AddConversationToUser(contactUsername, username, conversationId);
+                    }
+                }
+
+            }
 
             return addResult;
         }
@@ -283,6 +315,83 @@ namespace chatserver.server.APIs
         {
             // TODO: Access control for contacts and groups
             return new ExitStatus();
+        }
+
+        // conversations
+        private async Task<ExitStatus> CreateConversation(string username, string contactUsername, bool privateConversation = true)
+        {
+            try
+            {
+                DDBBHandler ddbb = DDBBHandler.Instance;
+
+                // TODO: Check if the conversation already exist.
+                // If yes: check if is added to each user and then act depending the case.
+                // In an ideal world this is not necessary. Let's trust.
+
+                // null fields do not appear in the final json
+                var options = new JsonSerializerOptions
+                {
+                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+                };
+
+                List<string> participants = new List<string>();
+
+                if (privateConversation)
+                {
+                    participants.Add(username);
+                    participants.Add(contactUsername);
+                }
+
+                var newConversation = JsonDocument.Parse(
+                    JsonSerializer.Serialize(new
+                    {
+                        type = privateConversation ? "private" : "group",
+                        participants = privateConversation ? participants : null,
+                        messages = new List<object>()
+                    }, options)
+                ).RootElement;
+
+                ExitStatus creteConversationResult = await ddbb.write(DB_COLLECTION_NAME, newConversation);
+
+                return creteConversationResult;
+            }
+            catch (Exception ex)
+            {
+                return new ExitStatus
+                {
+                    status = ExitCodes.EXCEPTION,
+                    exception = ex.Message,
+                    message = "Something went wrong creating the conversation"
+                };
+            }
+        }
+
+        private async Task<ExitStatus> AddConversationToUser(string username, string contactUsername, string conversationId)
+        {
+            try
+            {
+                DDBBHandler ddbb = DDBBHandler.Instance;
+                var newField = JsonDocument.Parse(
+                    JsonSerializer.Serialize(new
+                    {
+                        chat = contactUsername,
+                        conversationId = conversationId,
+                    })
+                ).RootElement;
+
+                ExitStatus addResult = await ddbb.AddToArrayField(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.CONVERSATIONS, newField);
+
+                return addResult;
+            }
+            catch (Exception ex)
+            {
+                return new ExitStatus
+                {
+                    status = ExitCodes.EXCEPTION,
+                    exception = ex.Message,
+                    message = "Something went wrong adding the conversation"
+                };
+            }
         }
     }
 }
