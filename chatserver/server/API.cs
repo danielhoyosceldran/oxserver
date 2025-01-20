@@ -378,7 +378,6 @@ namespace chatserver.server
                         UsersHandler users = UsersHandler.Instance;
                         // TODO: [in next versions] send friend request. If accepted: add.
                         userResult = await users.AddContactHandler(username, contactUsername!);
-                        
                     }
                     else
                     {

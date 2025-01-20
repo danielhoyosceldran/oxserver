@@ -11,7 +11,6 @@ namespace chatserver.server.APIs
 {
     internal class UsersHandler
     {
-        private readonly string DB_COLLECTION_NAME = "users";
         private UsersHandler() { }
         private static UsersHandler instance = new UsersHandler();
         public static UsersHandler Instance { get { return instance; } }
@@ -91,7 +90,7 @@ namespace chatserver.server.APIs
         public async Task<string> getUserPassword(string username)
         {
             DDBBHandler ddbb = DDBBHandler.Instance;
-            ExitStatus passwordResult = await ddbb.RetrieveField(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.PASSWORD);
+            ExitStatus passwordResult = await ddbb.RetrieveField(DataBaseCollections.USERS, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.PASSWORD);
             if (passwordResult.status != ExitCodes.OK)
             {
                 throw new Exception("Password problems");
@@ -161,7 +160,7 @@ namespace chatserver.server.APIs
             try
             {
                 DDBBHandler dDBBHandler = DDBBHandler.Instance;
-                ExitStatus result = await dDBBHandler.find(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username);
+                ExitStatus result = await dDBBHandler.find(DataBaseCollections.USERS, UsersDDBBStructure.USERNAME, username);
 
                 return new ExitStatus
                 {
@@ -183,13 +182,13 @@ namespace chatserver.server.APIs
         private async Task<bool> ContactExists(string username, string contact)
         {
             DDBBHandler ddbb = DDBBHandler.Instance;
-            return await ddbb.FindInArray(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.CONTACTS, UsersDDBBStructure.USERNAME, contact);
+            return await ddbb.FindInArray(DataBaseCollections.USERS, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.CONTACTS, UsersDDBBStructure.USERNAME, contact);
         }
 
         private async Task<ExitStatus> RetrieveUserName(string username)
         {
             DDBBHandler ddbb = DDBBHandler.Instance;
-            ExitStatus result = await ddbb.RetrieveField(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.NAME);
+            ExitStatus result = await ddbb.RetrieveField(DataBaseCollections.USERS, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.NAME);
             if (result.status != ExitCodes.OK) result.message = "Contact not found";
             return result;
         }
@@ -210,7 +209,7 @@ namespace chatserver.server.APIs
         public async Task<ExitStatus> RetrieveContacts(string username)
         {
             DDBBHandler ddbb = DDBBHandler.Instance;
-            ExitStatus result = await ddbb.RetrieveField(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.CONTACTS);
+            ExitStatus result = await ddbb.RetrieveField(DataBaseCollections.USERS, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.CONTACTS);
             return result;
         }
 
@@ -261,7 +260,7 @@ namespace chatserver.server.APIs
                 }, options)
             ).RootElement;
 
-            ExitStatus addResult = await ddbb.AddToArrayField(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username,
+            ExitStatus addResult = await ddbb.AddToArrayField(DataBaseCollections.USERS, UsersDDBBStructure.USERNAME, username,
                 isGroup
                 ? UsersDDBBStructure.GROUPS
                 : UsersDDBBStructure.CONTACTS, newField
@@ -272,31 +271,43 @@ namespace chatserver.server.APIs
 
         public async Task<ExitStatus> AddContactHandler(string username, string contactUsername, bool bidirectional = true)
         {
-            // TDOD: In future versions we must send a friend request.
-
-            ExitStatus addResult = await AddContactOrGroup(username, contactUsername);
-
-            if (addResult.status == ExitCodes.OK)
+            try
             {
-                ExitStatus createConversationResult = await CreateConversation(username, contactUsername);
+                // TDOD: In future versions we must send a friend request.
 
-                string conversationId;
-                if (createConversationResult.status == ExitCodes.OK)
+                ExitStatus addResult = await AddContactOrGroup(username, contactUsername);
+
+                if (addResult.status == ExitCodes.OK)
                 {
-                    conversationId = (string)createConversationResult.result!;
-                    ExitStatus addConversationResult = await AddConversationToUser(username, contactUsername, conversationId);
-                    if (bidirectional)
+                    ExitStatus createConversationResult = await CreateConversation(username, contactUsername);
+
+                    string conversationId;
+                    if (createConversationResult.status == ExitCodes.OK)
                     {
-                        // TODO: Instead of "_" we should control the case that this second actions go wrong.
-                        // So we should delete the created entites firstly and then return an error to the user.
-                        _ = await AddContactOrGroup(contactUsername, username);
-                        _ = await AddConversationToUser(contactUsername, username, conversationId);
+                        conversationId = (string)createConversationResult.result!;
+                        ExitStatus addConversationResult = await AddConversationToUser(username, contactUsername, conversationId);
+                        if (bidirectional)
+                        {
+                            // TODO: Instead of "_" we should control the case that this second actions go wrong.
+                            // So we should delete the created entites firstly and then return an error to the user.
+                            _ = await AddContactOrGroup(contactUsername, username);
+                            _ = await AddConversationToUser(contactUsername, username, conversationId);
+                        }
                     }
+
                 }
 
+                return addResult;
             }
-
-            return addResult;
+            catch (Exception ex)
+            {
+                return new ExitStatus
+                {
+                    status = ExitCodes.EXCEPTION,
+                    exception = ex.Message,
+                    message = "Something went wrong adding your contact"
+                };
+            }
         }
 
         public async Task<ExitStatus> DeleteContactOrGroup(string username, string usernameOrId)
@@ -351,7 +362,7 @@ namespace chatserver.server.APIs
                     }, options)
                 ).RootElement;
 
-                ExitStatus creteConversationResult = await ddbb.write(DB_COLLECTION_NAME, newConversation);
+                ExitStatus creteConversationResult = await ddbb.write(DataBaseCollections.CONVERSATIONS, newConversation);
 
                 return creteConversationResult;
             }
@@ -379,7 +390,7 @@ namespace chatserver.server.APIs
                     })
                 ).RootElement;
 
-                ExitStatus addResult = await ddbb.AddToArrayField(DB_COLLECTION_NAME, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.CONVERSATIONS, newField);
+                ExitStatus addResult = await ddbb.AddToArrayField(DataBaseCollections.CONVERSATIONS, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.CONVERSATIONS, newField);
 
                 return addResult;
             }

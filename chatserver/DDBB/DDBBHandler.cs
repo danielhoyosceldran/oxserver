@@ -33,7 +33,7 @@ namespace chatserver.DDBB
 
                 await collection.InsertOneAsync(bsonDocument);
 
-                return new utils.ExitStatus { status = ExitCodes.OK, result = bsonDocument["_id"] };
+                return new utils.ExitStatus { status = ExitCodes.OK, result = bsonDocument["_id"].ToString()};
             }
             catch (Exception ex)
             {

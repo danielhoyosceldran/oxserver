@@ -15,4 +15,12 @@ namespace chatserver.DDBB
         public static readonly string GROUPS = "groups";
         public static readonly string CONVERSATIONS = "conversations";
     }
+
+    public class DataBaseCollections
+    {
+        public static readonly string USERS = "users";
+        public static readonly string SESSIONS = "sessions";
+        public static readonly string GROUPS = "groups";
+        public static readonly string CONVERSATIONS = "conversations";
+    }
 }
