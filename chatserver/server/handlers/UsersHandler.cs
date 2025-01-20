@@ -390,7 +390,7 @@ namespace chatserver.server.APIs
                     })
                 ).RootElement;
 
-                ExitStatus addResult = await ddbb.AddToArrayField(DataBaseCollections.CONVERSATIONS, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.CONVERSATIONS, newField);
+                ExitStatus addResult = await ddbb.AddToArrayField(DataBaseCollections.USERS, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.CONVERSATIONS, newField);
 
                 return addResult;
             }
