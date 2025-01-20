@@ -217,6 +217,12 @@ namespace chatserver.server.APIs
 
         private async Task<ExitStatus> AddContactOrGroup(string username, string usernameOrId)
         {
+            if (username == usernameOrId) return new ExitStatus
+            {
+                status = ExitCodes.ERROR,
+                message = "You cant add yourselve"
+            };
+
             DDBBHandler ddbb = DDBBHandler.Instance;
 
             bool isGroup = IsGroup(usernameOrId);
