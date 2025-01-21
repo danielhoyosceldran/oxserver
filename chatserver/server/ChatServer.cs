@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Collections.Concurrent;
+using chatserver.utils;
 
 namespace chatserver.server
 {
@@ -86,6 +87,7 @@ namespace chatserver.server
             }
             catch (WebSocketException e)
             {
+                Logger.WebSocketsServerLogger.Error("[EXCEPTION] running HandleWebSocketConnectionAsync: " + e);
                 Console.WriteLine($"Error de WebSocket per a {username}: {e.Message}");
             }
             finally
@@ -108,19 +110,36 @@ namespace chatserver.server
                     string? text = root.GetProperty("content").GetString();
                     string? to = root.GetProperty("to").GetString();
 
-                    if (!string.IsNullOrEmpty(to) && webSockets.TryGetValue(to, out WebSocket toSocket) && webSockets.TryGetValue(from, out WebSocket fromSocket))
+                    bool isGroupMessage = Utils.IsGroup(to!);
+
+                    if (isGroupMessage)
                     {
-                        await SendMessageAsync(toSocket, message);
-                        await SendMessageAsync(fromSocket, message);
                     }
-                    else
+                    else if (!string.IsNullOrEmpty(to))
                     {
-                        Logger.ConsoleLogger.Debug($"Destinatari no trobat: {to}");
+                        // TODO: Save Message
+
+
+                        if (webSockets.TryGetValue(to, out WebSocket toSocket))
+                        {
+                            await SendMessageAsync(toSocket, message);
+                        }
+                        else
+                        {
+                            Logger.ConsoleLogger.Debug($"Destinatari no trobat: {to}");
+                        }
+
+                        if (webSockets.TryGetValue(from, out WebSocket fromSocket))
+                        {
+                            await SendMessageAsync(fromSocket, message);
+                        }
                     }
+
                 }
             }
             catch (JsonException e)
             {
+                Logger.WebSocketsServerLogger.Error("[EXCEPTION] running ProcessMessage: " + e);
                 Console.WriteLine($"Error processant missatge JSON: {e.Message}");
             }
         }
@@ -138,5 +157,7 @@ namespace chatserver.server
                 );
             }
         }
+
+
     }
 }

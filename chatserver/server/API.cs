@@ -409,15 +409,7 @@ namespace chatserver.server
 
                         string? conversationObjective = urlParams["conversationObjective"];
 
-                        userResult = await users.RetrieveMessages(username, conversationObjective!);
-                    }
-                    else if (request.HttpMethod == "PATCH")
-                    {
-
-                    }
-                    else
-                    {
-
+                        userResult = await ChatHandler.RetrieveMessages(username, conversationObjective!);
                     }
                 }
 

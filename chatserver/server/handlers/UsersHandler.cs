@@ -209,10 +209,7 @@ namespace chatserver.server.APIs
             return result;
         }
 
-        private bool IsGroup(string groupId)
-        {
-            return groupId.StartsWith("#gId");
-        }
+        
 
         public async Task<ExitStatus> RetrieveContacts(string username)
         {
@@ -233,7 +230,7 @@ namespace chatserver.server.APIs
 
             DDBBHandler ddbb = DDBBHandler.Instance;
 
-            bool isGroup = IsGroup(usernameOrId);
+            bool isGroup = Utils.IsGroup(usernameOrId);
 
             // Check if the user to add exist
             if (!isGroup)
@@ -293,7 +290,7 @@ namespace chatserver.server.APIs
 
                 if (addResult.status == ExitCodes.OK)
                 {
-                    ExitStatus createConversationResult = await CreateConversation(username, contactUsername);
+                    ExitStatus createConversationResult = await ChatHandler.CreateConversation(username, contactUsername);
 
                     string conversationId;
                     if (createConversationResult.status == ExitCodes.OK)
@@ -341,55 +338,6 @@ namespace chatserver.server.APIs
             return new ExitStatus();
         }
 
-        // conversations
-        private async Task<ExitStatus> CreateConversation(string username, string contactUsername, bool privateConversation = true)
-        {
-            try
-            {
-                DDBBHandler ddbb = DDBBHandler.Instance;
-
-                // TODO: Check if the conversation already exist.
-                // If yes: check if is added to each user and then act depending the case.
-                // In an ideal world this is not necessary. Let's trust.
-
-                // null fields do not appear in the final json
-                var options = new JsonSerializerOptions
-                {
-                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-                };
-
-                List<string> participants = new List<string>();
-
-                if (privateConversation)
-                {
-                    participants.Add(username);
-                    participants.Add(contactUsername);
-                }
-
-                var newConversation = JsonDocument.Parse(
-                    JsonSerializer.Serialize(new
-                    {
-                        type = privateConversation ? "private" : "group",
-                        participants = privateConversation ? participants : null,
-                        messages = new List<object>()
-                    }, options)
-                ).RootElement;
-
-                ExitStatus creteConversationResult = await ddbb.write(DataBaseCollections.CONVERSATIONS, newConversation);
-
-                return creteConversationResult;
-            }
-            catch (Exception ex)
-            {
-                return new ExitStatus
-                {
-                    status = ExitCodes.EXCEPTION,
-                    exception = ex.Message,
-                    message = "Something went wrong creating the conversation"
-                };
-            }
-        }
-
         private async Task<ExitStatus> AddConversationToUser(string username, string contactUsername, string conversationId)
         {
             try
@@ -414,48 +362,6 @@ namespace chatserver.server.APIs
                     status = ExitCodes.EXCEPTION,
                     exception = ex.Message,
                     message = "Something went wrong adding the conversation"
-                };
-            }
-        }
-
-        public async Task<ExitStatus> RetrieveMessages(string username, string conversationObjective)
-        {
-            try
-            {
-                DDBBHandler ddbb = DDBBHandler.Instance;
-                ExitStatus searchResult = await ddbb.RetrieveArrayField(
-                    DataBaseCollections.USERS,
-                    UsersDDBBStructure.USERNAME,
-                    username,
-                    UsersDDBBStructure.CONVERSATIONS,
-                    UsersDDBBStructure.CHAT,
-                    conversationObjective
-                );
-
-                if (searchResult.status != ExitCodes.OK) return new ExitStatus { status = ExitCodes.ERROR, message = "Error finding messages" };
-
-                Dictionary<string, string> conversationDictionary = (Dictionary<string, string>)searchResult.result!;
-
-                string conversationId = conversationDictionary["conversationId"];
-
-                ExitStatus messagesResult = await ddbb.find(DataBaseCollections.CONVERSATIONS, "_id", conversationId);
-
-                if (messagesResult.status != ExitCodes.OK) return new ExitStatus { status = ExitCodes.ERROR, message = "Error exrtacting messages" };
-
-                JsonDocument messageObject = (JsonDocument)messagesResult.result!;
-                var messages = messageObject.RootElement.GetProperty("messages");
-
-                messagesResult.result = messages.ToString();
-
-                return messagesResult;
-            }
-            catch (Exception ex)
-            {
-                return new ExitStatus
-                {
-                    status = ExitCodes.EXCEPTION,
-                    exception = ex.ToString(),
-                    message = ex.Message
                 };
             }
         }

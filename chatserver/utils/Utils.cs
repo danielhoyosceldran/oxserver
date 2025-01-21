@@ -48,5 +48,10 @@ namespace chatserver.utils
 
             return queryParameters;
         }
+
+        public static bool IsGroup(string groupId)
+        {
+            return groupId.StartsWith("#gId");
+        }
     }
 }
