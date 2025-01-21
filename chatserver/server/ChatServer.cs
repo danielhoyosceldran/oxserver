@@ -105,7 +105,7 @@ namespace chatserver.server
                 string? type = root.GetProperty("type").GetString();
                 if (type == "text")
                 {
-                    string? text = root.GetProperty("text").GetString();
+                    string? text = root.GetProperty("content").GetString();
                     string? to = root.GetProperty("to").GetString();
 
                     if (!string.IsNullOrEmpty(to) && webSockets.TryGetValue(to, out WebSocket toSocket) && webSockets.TryGetValue(from, out WebSocket fromSocket))

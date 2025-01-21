@@ -427,7 +427,7 @@ namespace chatserver.server
                 {
                     status = userResult.status == ExitCodes.OK ? true : false,
                     message = userResult.message,
-                    result = usernameResult.status == ExitCodes.OK ? userResult.result : null,
+                    content = usernameResult.status == ExitCodes.OK ? userResult.result : null,
                 }));
 
                 return new ExitStatus();
