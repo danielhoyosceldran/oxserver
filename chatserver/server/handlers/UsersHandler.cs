@@ -182,7 +182,15 @@ namespace chatserver.server.APIs
         private async Task<bool> ContactExists(string username, string contact)
         {
             DDBBHandler ddbb = DDBBHandler.Instance;
-            return await ddbb.FindInArray(DataBaseCollections.USERS, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.CONTACTS, UsersDDBBStructure.USERNAME, contact);
+            ExitStatus searchResult = await ddbb.RetrieveArrayField(
+                DataBaseCollections.USERS, 
+                UsersDDBBStructure.USERNAME, 
+                username, 
+                UsersDDBBStructure.CONTACTS, 
+                UsersDDBBStructure.USERNAME,
+                contact
+            );
+            return searchResult.status == ExitCodes.OK;
         }
 
         private async Task<ExitStatus> RetrieveUserName(string username)
@@ -303,6 +311,11 @@ namespace chatserver.server.APIs
 
                 }
 
+                if (addResult.message == "Contact already added")
+                {
+                    addResult.status = ExitCodes.OK;
+                }
+
                 return addResult;
             }
             catch (Exception ex)
@@ -323,12 +336,6 @@ namespace chatserver.server.APIs
         }
 
         public async Task<ExitStatus> UpdateContact(string username, string contactUsername, string newName)
-        {
-            // TODO: Access control for contacts and groups
-            return new ExitStatus();
-        }
-        
-        public async Task<ExitStatus> RetrieveMessages(string username, string contactUsername)
         {
             // TODO: Access control for contacts and groups
             return new ExitStatus();
@@ -407,6 +414,48 @@ namespace chatserver.server.APIs
                     status = ExitCodes.EXCEPTION,
                     exception = ex.Message,
                     message = "Something went wrong adding the conversation"
+                };
+            }
+        }
+
+        public async Task<ExitStatus> RetrieveMessages(string username, string conversationObjective)
+        {
+            try
+            {
+                DDBBHandler ddbb = DDBBHandler.Instance;
+                ExitStatus searchResult = await ddbb.RetrieveArrayField(
+                    DataBaseCollections.USERS,
+                    UsersDDBBStructure.USERNAME,
+                    username,
+                    UsersDDBBStructure.CONVERSATIONS,
+                    UsersDDBBStructure.CHAT,
+                    conversationObjective
+                );
+
+                if (searchResult.status != ExitCodes.OK) return new ExitStatus { status = ExitCodes.ERROR, message = "Error finding messages" };
+
+                Dictionary<string, string> conversationDictionary = (Dictionary<string, string>)searchResult.result!;
+
+                string conversationId = conversationDictionary["conversationId"];
+
+                ExitStatus messagesResult = await ddbb.find(DataBaseCollections.CONVERSATIONS, "_id", conversationId);
+
+                if (messagesResult.status != ExitCodes.OK) return new ExitStatus { status = ExitCodes.ERROR, message = "Error exrtacting messages" };
+
+                JsonDocument messageObject = (JsonDocument)messagesResult.result!;
+                var messages = messageObject.RootElement.GetProperty("messages");
+
+                messagesResult.result = messages.ToString();
+
+                return messagesResult;
+            }
+            catch (Exception ex)
+            {
+                return new ExitStatus
+                {
+                    status = ExitCodes.EXCEPTION,
+                    exception = ex.ToString(),
+                    message = ex.Message
                 };
             }
         }

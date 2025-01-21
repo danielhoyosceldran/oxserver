@@ -383,20 +383,12 @@ namespace chatserver.server
                     {
 
                     }
-                    // TODO : gestionar quan es retorna un error
-                    response.StatusCode = usernameResult.status == ExitCodes.OK ? (int)HttpStatusCode.OK : (int)HttpStatusCode.InternalServerError;
-                    SendJsonResponse(response, JsonSerializer.Serialize(new
-                    {
-                        status = userResult.status == ExitCodes.OK ? true : false,
-                        message = userResult.message,
-                        contacts = usernameResult.status == ExitCodes.OK ? userResult.result : null,
-                    }));
                 }
                 else if (resources[0] == "groups")
                 {
                     if (request.HttpMethod == "GET")
                     {
-
+                        
                     }
                     else if (request.HttpMethod == "PATCH")
                     {
@@ -411,7 +403,13 @@ namespace chatserver.server
                 {
                     if (request.HttpMethod == "GET")
                     {
+                        UsersHandler users = UsersHandler.Instance;
 
+                        Dictionary<string, string> urlParams = Utils.ExtractQueryParameters(request.Url!);
+
+                        string? conversationObjective = urlParams["conversationObjective"];
+
+                        userResult = await users.RetrieveMessages(username, conversationObjective!);
                     }
                     else if (request.HttpMethod == "PATCH")
                     {
@@ -422,6 +420,15 @@ namespace chatserver.server
 
                     }
                 }
+
+                // TODO : gestionar quan es retorna un error
+                response.StatusCode = usernameResult.status == ExitCodes.OK ? (int)HttpStatusCode.OK : (int)HttpStatusCode.InternalServerError;
+                SendJsonResponse(response, JsonSerializer.Serialize(new
+                {
+                    status = userResult.status == ExitCodes.OK ? true : false,
+                    message = userResult.message,
+                    result = usernameResult.status == ExitCodes.OK ? userResult.result : null,
+                }));
 
                 return new ExitStatus();
             }

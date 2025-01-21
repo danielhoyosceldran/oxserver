@@ -2,6 +2,7 @@
 using MongoDB.Driver;
 using System.Text.Json;
 using chatserver.utils;
+using log4net.Util;
 
 namespace chatserver.DDBB
 {
@@ -48,13 +49,25 @@ namespace chatserver.DDBB
                 var database = client.GetDatabase(DATA_BASE_NAME);
                 var collection = database.GetCollection<BsonDocument>(collectionName);
 
-                var filter = Builders<BsonDocument>.Filter.Eq(key, value);
+                var filter = key == "_id"
+                    ? Builders<BsonDocument>.Filter.Eq(key, new ObjectId(value))
+                    : Builders<BsonDocument>.Filter.Eq(key, value);
                 BsonDocument bResult = await collection.Find(filter).FirstOrDefaultAsync();
 
                 return new ExitStatus
                 {
                     status = bResult != null ? ExitCodes.OK : ExitCodes.NOT_FOUND,
                     result = bResult != null ? JsonDocument.Parse(bResult.ToJson()) : null
+                };
+            }
+            catch (FormatException ex)
+            {
+                // Handle invalid ObjectId format
+                return new ExitStatus
+                {
+                    status = ExitCodes.BAD_REQUEST,
+                    exception = ex.Message,
+                    message = "Invalid ObjectId format."
                 };
             }
             catch (Exception ex)
@@ -243,12 +256,12 @@ namespace chatserver.DDBB
             }
         }
 
-        public async Task<bool> FindInArray(
-            string collectionName, 
-            string key, 
-            string value, 
-            string arrayKey, 
-            string elementKey, 
+        public async Task<ExitStatus> RetrieveArrayField(
+            string collectionName,
+            string key,
+            string value,
+            string arrayKey,
+            string elementKey,
             string elementValue)
         {
             try
@@ -256,7 +269,7 @@ namespace chatserver.DDBB
                 var database = client.GetDatabase(DATA_BASE_NAME);
                 var collection = database.GetCollection<BsonDocument>(collectionName);
 
-                // Construir el filtre
+                // Build the filter to match the main document and the specific element within the array
                 var filter = Builders<BsonDocument>.Filter.And(
                     Builders<BsonDocument>.Filter.Eq(key, value),
                     Builders<BsonDocument>.Filter.ElemMatch(
@@ -265,14 +278,36 @@ namespace chatserver.DDBB
                     )
                 );
 
-                // Cercar el document
-                var result = await collection.Find(filter).FirstOrDefaultAsync();
-                return result != null;
+                // Project only the matching array element
+                var projection = Builders<BsonDocument>.Projection
+                    .ElemMatch(arrayKey, Builders<BsonDocument>.Filter.Eq(elementKey, elementValue));
+
+                // Find the document with the specific array element
+                var result = await collection.Find(filter).Project(projection).FirstOrDefaultAsync();
+
+                if (result != null && result.Contains(arrayKey))
+                {
+                    // Extract the matching element from the array
+                    var arrayElement = result[arrayKey].AsBsonArray.FirstOrDefault();
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.OK,
+                        result = JsonSerializer.Deserialize<Dictionary<string, string>>(arrayElement.ToJson()) // Return the specific array element as JSON
+                    };
+                }
+                else
+                {
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.NOT_FOUND,
+                        message = "Element not found in the array."
+                    };
+                }
             }
             catch (MongoException ex)
             {
                 Logger.DataBaseLogger.Error($"MongoDB error: {ex.Message}");
-                throw; // Llança l'error per a gestió superior
+                throw; // Re-throw the error for higher-level handling
             }
             catch (Exception ex)
             {
@@ -280,7 +315,5 @@ namespace chatserver.DDBB
                 throw;
             }
         }
-
-
     }
 }

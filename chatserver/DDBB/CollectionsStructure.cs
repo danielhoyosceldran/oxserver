@@ -14,6 +14,7 @@ namespace chatserver.DDBB
         public static readonly string CONTACTS = "contacts";
         public static readonly string GROUPS = "groups";
         public static readonly string CONVERSATIONS = "conversations";
+        public static readonly string CHAT = "chat";
     }
 
     public class DataBaseCollections
