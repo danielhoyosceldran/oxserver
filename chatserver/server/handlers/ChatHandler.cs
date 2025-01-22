@@ -85,7 +85,10 @@ namespace chatserver.server.APIs
                 if (messagesResult.status != ExitCodes.OK) return new ExitStatus { status = ExitCodes.ERROR, message = "Error exrtacting messages" };
 
                 JsonDocument messageObject = (JsonDocument)messagesResult.result!;
-                var messages = messageObject.RootElement.GetProperty("messages");
+                //var messages = messageObject.RootElement.GetProperty("messages");
+
+                // TODO: Recuperar el id de l'objecte i posarlo com a "id" en comtes de _id.$oid, per a poder recuperar-lo correctament a javascript
+
                 string messageObjectString = JsonSerializer.Serialize(messageObject.RootElement);
 
                 messagesResult.result = messageObjectString;
