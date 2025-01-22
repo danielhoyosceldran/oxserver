@@ -86,8 +86,11 @@ namespace chatserver.server.APIs
 
                 JsonDocument messageObject = (JsonDocument)messagesResult.result!;
                 var messages = messageObject.RootElement.GetProperty("messages");
+                string messageObjectString = JsonSerializer.Serialize(messageObject.RootElement);
 
-                messagesResult.result = messages.ToString();
+                messagesResult.result = messageObjectString;
+                //messagesResult.result = messages.ToString();
+
 
                 return messagesResult;
             }
