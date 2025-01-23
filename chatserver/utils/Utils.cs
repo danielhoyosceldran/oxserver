@@ -58,17 +58,30 @@ namespace chatserver.utils
 
         public static JsonElement ModifyFieldUsingJsonNode(JsonElement original, string fieldName, string newValue)
         {
-            // Convertir JsonElement a JsonObject
-            var jsonObject = JsonNode.Parse(original.GetRawText()).AsObject();
+            var jsonObject = JsonNode.Parse(original.GetRawText())!.AsObject();
 
-            // Modificar el camp
             if (jsonObject.ContainsKey(fieldName))
             {
                 jsonObject[fieldName] = newValue;
             }
 
-            // Retornar el resultat com a JsonElement
             return JsonDocument.Parse(jsonObject.ToJsonString()).RootElement;
+        }
+
+        public static JsonElement RemoveField(JsonElement element, string fieldName)
+        {
+            string jsonString = element.GetRawText();
+
+            var jsonObject = JsonSerializer.Deserialize<JsonObject>(jsonString);
+
+            if (jsonObject != null && jsonObject.ContainsKey(fieldName))
+            {
+                jsonObject.Remove(fieldName);
+            }
+
+            string updatedJsonString = jsonObject?.ToJsonString() ?? "{}";
+
+            return JsonDocument.Parse(updatedJsonString).RootElement;
         }
     }
 }

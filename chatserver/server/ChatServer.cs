@@ -104,6 +104,10 @@ namespace chatserver.server
                 using JsonDocument doc = JsonDocument.Parse(message);
                 JsonElement root = doc.RootElement;
 
+                string? conversationId = root.GetProperty("conversationId").GetString();
+                JsonElement rootToSend = Utils.RemoveField(root, "conversationId");
+                string messageToSend = rootToSend.ToString();
+
                 string? type = root.GetProperty("type").GetString();
                 if (type == "text")
                 {
@@ -122,7 +126,7 @@ namespace chatserver.server
 
                         if (webSockets.TryGetValue(to, out WebSocket toSocket))
                         {
-                            await SendMessageAsync(toSocket, message);
+                            await SendMessageAsync(toSocket, messageToSend);
                         }
                         else
                         {
@@ -131,7 +135,7 @@ namespace chatserver.server
 
                         if (webSockets.TryGetValue(from, out WebSocket fromSocket))
                         {
-                            await SendMessageAsync(fromSocket, message);
+                            await SendMessageAsync(fromSocket, messageToSend);
                         }
                     }
 
