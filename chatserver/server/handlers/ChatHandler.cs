@@ -60,7 +60,7 @@ namespace chatserver.server.APIs
             }
         }
 
-        public static async Task<ExitStatus> RetrieveMessages(string username, string conversationObjective)
+        public static async Task<ExitStatus> RetrieveConversation(string username, string conversationObjective)
         {
             try
             {
@@ -89,11 +89,13 @@ namespace chatserver.server.APIs
 
                 // TODO: Recuperar el id de l'objecte i posarlo com a "id" en comtes de _id.$oid, per a poder recuperar-lo correctament a javascript
 
-                string messageObjectString = JsonSerializer.Serialize(messageObject.RootElement);
+                JsonElement root = messageObject.RootElement;
+                JsonElement modifiedRoot = Utils.ModifyFieldUsingJsonNode(root, "_id", conversationId);
+
+                string messageObjectString = JsonSerializer.Serialize(modifiedRoot);
 
                 messagesResult.result = messageObjectString;
                 //messagesResult.result = messages.ToString();
-
 
                 return messagesResult;
             }

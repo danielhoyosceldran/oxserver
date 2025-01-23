@@ -399,7 +399,7 @@ namespace chatserver.server
 
                     }
                 }
-                else if (resources[0] == "messages")
+                else if (resources[0] == "conversation")
                 {
                     if (request.HttpMethod == "GET")
                     {
@@ -409,7 +409,7 @@ namespace chatserver.server
 
                         string? conversationObjective = urlParams["conversationObjective"];
 
-                        userResult = await ChatHandler.RetrieveMessages(username, conversationObjective!);
+                        userResult = await ChatHandler.RetrieveConversation(username, conversationObjective!);
                     }
                 }
 

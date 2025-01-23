@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Nodes;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace chatserver.utils
@@ -52,6 +54,21 @@ namespace chatserver.utils
         public static bool IsGroup(string groupId)
         {
             return groupId.StartsWith("#gId");
+        }
+
+        public static JsonElement ModifyFieldUsingJsonNode(JsonElement original, string fieldName, string newValue)
+        {
+            // Convertir JsonElement a JsonObject
+            var jsonObject = JsonNode.Parse(original.GetRawText()).AsObject();
+
+            // Modificar el camp
+            if (jsonObject.ContainsKey(fieldName))
+            {
+                jsonObject[fieldName] = newValue;
+            }
+
+            // Retornar el resultat com a JsonElement
+            return JsonDocument.Parse(jsonObject.ToJsonString()).RootElement;
         }
     }
 }
