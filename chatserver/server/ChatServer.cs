@@ -4,6 +4,9 @@ using System.Text;
 using System.Text.Json;
 using System.Collections.Concurrent;
 using chatserver.utils;
+using System.Text.Json.Nodes;
+using MongoDB.Bson;
+using chatserver.DDBB;
 
 namespace chatserver.server
 {
@@ -104,9 +107,11 @@ namespace chatserver.server
                 using JsonDocument doc = JsonDocument.Parse(message);
                 JsonElement root = doc.RootElement;
 
-                string? conversationId = root.GetProperty("conversationId").GetString();
-                JsonElement rootToSend = Utils.RemoveField(root, "conversationId");
-                string messageToSend = rootToSend.ToString();
+                // Convert JsonElement to JsonObject for easier manipulation
+                JsonObject jsonObject = JsonNode.Parse(root.GetRawText())!.AsObject();
+
+                string conversationId = jsonObject["conversationId"]!.ToString();
+                jsonObject.Remove("conversationId");
 
                 string? type = root.GetProperty("type").GetString();
                 if (type == "text")
@@ -121,11 +126,13 @@ namespace chatserver.server
                     }
                     else if (!string.IsNullOrEmpty(to))
                     {
-                        // TODO: Save Message
-
-
                         if (webSockets.TryGetValue(to, out WebSocket toSocket))
                         {
+                            jsonObject["readed"] = true;
+                            string messageToSend = jsonObject.ToJsonString(new JsonSerializerOptions
+                            {
+                                WriteIndented = false
+                            });
                             await SendMessageAsync(toSocket, messageToSend);
                         }
                         else
@@ -135,10 +142,24 @@ namespace chatserver.server
 
                         if (webSockets.TryGetValue(from, out WebSocket fromSocket))
                         {
+                            string messageToSend = jsonObject.ToJsonString(new JsonSerializerOptions
+                            {
+                                WriteIndented = false
+                            });
                             await SendMessageAsync(fromSocket, messageToSend);
                         }
-                    }
 
+                        JsonElement messageToSave = JsonDocument.Parse(jsonObject.ToJsonString()).RootElement;
+
+                        DDBBHandler ddbb = DDBBHandler.Instance;
+                        ExitStatus saveResult = await ddbb.AddToArrayField(
+                            DataBaseCollections.CONVERSATIONS,
+                            ConversationDDBBStructure.ID,
+                            conversationId,
+                            ConversationDDBBStructure.MESSAGES,
+                            messageToSave
+                        );
+                    }
                 }
             }
             catch (JsonException e)

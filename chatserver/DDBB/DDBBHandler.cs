@@ -219,8 +219,10 @@ namespace chatserver.DDBB
                 var database = client.GetDatabase(DATA_BASE_NAME);
                 var collection = database.GetCollection<BsonDocument>(collectionName);
 
-                // Filtra el document basant-se en el key i el value
-                var filter = Builders<BsonDocument>.Filter.Eq(key, value);
+                // Converteix el valor en ObjectId si el camp és "_id"
+                var filter = key == "_id"
+                    ? Builders<BsonDocument>.Filter.Eq(key, ObjectId.Parse(value))
+                    : Builders<BsonDocument>.Filter.Eq(key, value);
 
                 // Crea l'operació de push per afegir l'element a l'array
                 var update = Builders<BsonDocument>.Update.Push(arrayField, BsonDocument.Parse(newItem.ToString()));

@@ -17,6 +17,12 @@ namespace chatserver.DDBB
         public static readonly string CHAT = "chat";
     }
 
+    public class ConversationDDBBStructure
+    {
+        public static readonly string ID = "_id";
+        public static readonly string MESSAGES = "messages";
+    }
+
     public class DataBaseCollections
     {
         public static readonly string USERS = "users";
