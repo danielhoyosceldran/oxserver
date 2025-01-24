@@ -108,6 +108,10 @@ namespace chatserver.server
                     {
                         await HandleSignOut(request, response);
                     }
+                    else if (resources[0] == "conversation")
+                    {
+                        await HandleConversationRequests(request, response, resources.Skip(1).ToList());
+                    }
                 }
                 else
                 {
@@ -330,6 +334,53 @@ namespace chatserver.server
             return await SessionHandler.SignOut("");
         }
 
+        private static async Task<ExitStatus> HandleConversationRequests(HttpListenerRequest request, HttpListenerResponse response, List<string> resources)
+        {
+            try
+            {
+                var sessionCookie = request.Cookies["accessToken"];
+                var accessToken = sessionCookie!.Value;
+                ExitStatus usernameResult = await SessionHandler.GetUsernameFromAccessToken(accessToken);
+
+                if (usernameResult.status == ExitCodes.ERROR) { throw new Exception(usernameResult.message); }
+                
+                string username = (string)usernameResult.result!;
+                ExitStatus conversationResult = new ExitStatus() { message = "" };
+
+                if (resources.Count == 0)
+                {
+                    if (request.HttpMethod == "GET") // TODO: Get conversations
+                    {
+                        UsersHandler users = UsersHandler.Instance;
+
+                        Dictionary<string, string> urlParams = Utils.ExtractQueryParameters(request.Url!);
+
+                        string? conversationObjective = urlParams["conversationObjective"];
+
+                        conversationResult = await ChatHandler.RetrieveConversation(username, conversationObjective!);
+                    }
+                }
+
+                response.StatusCode = usernameResult.status == ExitCodes.OK ? (int)HttpStatusCode.OK : (int)HttpStatusCode.InternalServerError;
+                SendJsonResponse(response, JsonSerializer.Serialize(new
+                {
+                    status = conversationResult.status == ExitCodes.OK ? true : false,
+                    message = conversationResult.message,
+                    content = usernameResult.status == ExitCodes.OK ? conversationResult.result : null,
+                }));
+
+                return new ExitStatus();
+            }
+            catch (Exception ex)
+            {
+                return new ExitStatus()
+                {
+                    status = ExitCodes.ERROR,
+                    message = ex.Message
+                };
+            }
+        }
+
         private static async Task<ExitStatus> HandleUserRequests(HttpListenerRequest request, HttpListenerResponse response, List<string> resources)
         {
             try
@@ -355,6 +406,7 @@ namespace chatserver.server
                 {
                     message = ""
                 };
+
                 if (resources[0] == "contacts")
                 {
                     if (request.HttpMethod == "GET")
@@ -399,21 +451,7 @@ namespace chatserver.server
 
                     }
                 }
-                else if (resources[0] == "conversation")
-                {
-                    if (request.HttpMethod == "GET")
-                    {
-                        UsersHandler users = UsersHandler.Instance;
 
-                        Dictionary<string, string> urlParams = Utils.ExtractQueryParameters(request.Url!);
-
-                        string? conversationObjective = urlParams["conversationObjective"];
-
-                        userResult = await ChatHandler.RetrieveConversation(username, conversationObjective!);
-                    }
-                }
-
-                // TODO : gestionar quan es retorna un error
                 response.StatusCode = usernameResult.status == ExitCodes.OK ? (int)HttpStatusCode.OK : (int)HttpStatusCode.InternalServerError;
                 SendJsonResponse(response, JsonSerializer.Serialize(new
                 {
