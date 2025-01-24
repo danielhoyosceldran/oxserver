@@ -106,30 +106,35 @@ namespace chatserver.server
         {
             try
             {
-                using JsonDocument doc = JsonDocument.Parse(message);
-                JsonElement root = doc.RootElement;
+                // For better manipulation
+                JsonObject container = Utils.ConertIntoJsonObject(message);
 
-                // Convert JsonElement to JsonObject for easier manipulation
-                JsonObject jsonObjectMessage = JsonNode.Parse(root.GetRawText())!.AsObject();
+                string type = Utils.GetRequiredJsonProperty(container, "type");
+                string conversationId = Utils.GetRequiredJsonProperty(container, "conversationId");
 
-                string conversationId = jsonObjectMessage["conversationId"]!.ToString();
-                jsonObjectMessage.Remove("conversationId");
-
-                string? type = root.GetProperty("type").GetString();
-                if (type == "text")
+                if (type == "readConfirmation")
                 {
-                    string? text = root.GetProperty("content").GetString();
-                    string? to = root.GetProperty("to").GetString();
+                    await ChatHandler.SetMessagesAsRead(conversationId);
+                }
+                else if (type == "userMessage")
+                {
+                    JsonObject jsonObjectMessage = Utils.ConertIntoJsonObject(Utils.GetRequiredJsonProperty(container, "content"));
+                    string messageType = Utils.GetRequiredJsonProperty(jsonObjectMessage, "type");
 
-                    bool isGroupMessage = Utils.IsGroup(to!);
+                    if (messageType == "text")
+                    {
+                        string to = Utils.GetRequiredJsonProperty(jsonObjectMessage, "to");
 
-                    if (isGroupMessage)
-                    {
-                    }
-                    else if (!string.IsNullOrEmpty(to))
-                    {
-                        await HandlePrivateMessages(from, to, conversationId, jsonObjectMessage);
-                        
+                        bool isGroupMessage = Utils.IsGroup(to);
+
+                        if (isGroupMessage)
+                        {
+                            // TODO: Handle group messages
+                        }
+                        else if (!string.IsNullOrEmpty(to))
+                        {
+                            await HandlePrivateMessages(from, to, conversationId, jsonObjectMessage);
+                        }
                     }
                 }
             }
@@ -139,6 +144,7 @@ namespace chatserver.server
                 Console.WriteLine($"Error processant missatge JSON: {e.Message}");
             }
         }
+
 
         private static async Task HandlePrivateMessages(string from, string to, string conversationId, JsonObject jsonObjectMessage)
         {

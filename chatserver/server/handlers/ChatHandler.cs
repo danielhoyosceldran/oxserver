@@ -126,7 +126,7 @@ namespace chatserver.server.APIs
             return new ExitStatus();
         }
 
-        public async Task SetMessagesAsRead(string conversationId)
+        public static async Task SetMessagesAsRead(string conversationId)
         {
             try
             {

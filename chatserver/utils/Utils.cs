@@ -83,5 +83,21 @@ namespace chatserver.utils
 
             return JsonDocument.Parse(updatedJsonString).RootElement;
         }
+
+        public static JsonObject ConertIntoJsonObject(string content)
+        {
+            using JsonDocument doc = JsonDocument.Parse(content);
+            JsonElement root = doc.RootElement;
+            return JsonNode.Parse(root.GetRawText())!.AsObject();
+        }
+
+        public static string GetRequiredJsonProperty(JsonObject jsonObject, string key)
+        {
+            if (!jsonObject.ContainsKey(key))
+            {
+                throw new JsonException($"Missing required key: {key}");
+            }
+            return jsonObject[key]!.ToString();
+        }
     }
 }
