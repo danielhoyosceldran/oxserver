@@ -8,6 +8,7 @@ using System.Text.Json.Nodes;
 using MongoDB.Bson;
 using chatserver.DDBB;
 using chatserver.server.APIs;
+using System.Runtime.InteropServices.JavaScript;
 
 namespace chatserver.server
 {
@@ -109,10 +110,10 @@ namespace chatserver.server
                 JsonElement root = doc.RootElement;
 
                 // Convert JsonElement to JsonObject for easier manipulation
-                JsonObject jsonObject = JsonNode.Parse(root.GetRawText())!.AsObject();
+                JsonObject jsonObjectMessage = JsonNode.Parse(root.GetRawText())!.AsObject();
 
-                string conversationId = jsonObject["conversationId"]!.ToString();
-                jsonObject.Remove("conversationId");
+                string conversationId = jsonObjectMessage["conversationId"]!.ToString();
+                jsonObjectMessage.Remove("conversationId");
 
                 string? type = root.GetProperty("type").GetString();
                 if (type == "text")
@@ -127,32 +128,8 @@ namespace chatserver.server
                     }
                     else if (!string.IsNullOrEmpty(to))
                     {
-                        if (webSockets.TryGetValue(to, out WebSocket toSocket))
-                        {
-                            jsonObject["readed"] = true;
-                            string messageToSend = jsonObject.ToJsonString(new JsonSerializerOptions
-                            {
-                                WriteIndented = false
-                            });
-                            await SendMessageAsync(toSocket, messageToSend);
-                        }
-                        else
-                        {
-                            Logger.ConsoleLogger.Debug($"Destinatari no trobat: {to}");
-                        }
-
-                        if (webSockets.TryGetValue(from, out WebSocket fromSocket))
-                        {
-                            string messageToSend = jsonObject.ToJsonString(new JsonSerializerOptions
-                            {
-                                WriteIndented = false
-                            });
-                            await SendMessageAsync(fromSocket, messageToSend);
-                        }
-
-                        JsonElement messageToSave = JsonDocument.Parse(jsonObject.ToJsonString()).RootElement;
-
-                        _ = await ChatHandler.AddMessageToConversation(messageToSave, conversationId);
+                        await HandlePrivateMessages(from, to, conversationId, jsonObjectMessage);
+                        
                     }
                 }
             }
@@ -161,6 +138,35 @@ namespace chatserver.server
                 Logger.WebSocketsServerLogger.Error("[EXCEPTION] running ProcessMessage: " + e);
                 Console.WriteLine($"Error processant missatge JSON: {e.Message}");
             }
+        }
+
+        private static async Task HandlePrivateMessages(string from, string to, string conversationId, JsonObject jsonObjectMessage)
+        {
+            if (webSockets.TryGetValue(to, out WebSocket toSocket))
+            {
+                jsonObjectMessage["readed"] = true;
+                string messageToSend = jsonObjectMessage.ToJsonString(new JsonSerializerOptions
+                {
+                    WriteIndented = false
+                });
+                await SendMessageAsync(toSocket, messageToSend);
+            }
+            else
+            {
+                Logger.ConsoleLogger.Debug($"Destinatari no trobat: {to}");
+            }
+
+            if (webSockets.TryGetValue(from, out WebSocket fromSocket))
+            {
+                string messageToSend = jsonObjectMessage.ToJsonString(new JsonSerializerOptions
+                {
+                    WriteIndented = false
+                });
+                await SendMessageAsync(fromSocket, messageToSend);
+            }
+
+            JsonElement messageToSave = JsonDocument.Parse(jsonObjectMessage.ToJsonString()).RootElement;
+            _ = await ChatHandler.AddMessageToConversation(messageToSave, conversationId);
         }
 
         private static async Task SendMessageAsync(WebSocket webSocket, string message)
