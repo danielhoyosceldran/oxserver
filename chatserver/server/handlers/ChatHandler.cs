@@ -6,6 +6,8 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using chatserver.DDBB;
 using chatserver.utils;
+using MongoDB.Bson;
+using MongoDB.Driver;
 
 namespace chatserver.server.APIs
 {
@@ -110,13 +112,49 @@ namespace chatserver.server.APIs
             }
         }
 
-        public static async Task<ExitStatus> AddMessage(JsonElement message)
+        public static async Task<ExitStatus> AddMessageToConversation(JsonElement messageToSave, string conversationId)
         {
             DDBBHandler ddbb = DDBBHandler.Instance;
-            //ExitStatus writeResult = await ddbb.AddToArrayField(DataBaseCollections.CONVERSATIONS, )
+            ExitStatus saveResult = await ddbb.AddToArrayField(
+                DataBaseCollections.CONVERSATIONS,
+                ConversationDDBBStructure.ID,
+                conversationId,
+                ConversationDDBBStructure.MESSAGES,
+                messageToSave
+            );
 
             return new ExitStatus();
         }
 
+        public async Task SetMessagesAsRead(string conversationId)
+        {
+            try
+            {
+                // Create the filter to match the document with the given conversationId and messages with read=false
+                var filter = Builders<BsonDocument>.Filter.And(
+                    Builders<BsonDocument>.Filter.Eq("_id", ObjectId.Parse(conversationId)),
+                    Builders<BsonDocument>.Filter.ElemMatch(
+                        "messages",
+                        Builders<BsonDocument>.Filter.Eq("read", false)
+                    )
+                );
+
+                // Create the update operation to set "read" to true
+                var update = Builders<BsonDocument>.Update.Set("messages.$[].read", true);
+
+                DDBBHandler ddbb = DDBBHandler.Instance;
+                _ = await ddbb.CustomRequest(filter, update, DataBaseCollections.CONVERSATIONS);
+            }
+            catch (FormatException ex)
+            {
+                Logger.ConsoleLogger.Error($"Invalid conversationId format: {ex.Message}");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Logger.ConsoleLogger.Error($"Error in SetMessagesAsRead: {ex.Message}");
+                throw;
+            }
+        }
     }
 }

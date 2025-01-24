@@ -7,6 +7,7 @@ using chatserver.utils;
 using System.Text.Json.Nodes;
 using MongoDB.Bson;
 using chatserver.DDBB;
+using chatserver.server.APIs;
 
 namespace chatserver.server
 {
@@ -151,14 +152,7 @@ namespace chatserver.server
 
                         JsonElement messageToSave = JsonDocument.Parse(jsonObject.ToJsonString()).RootElement;
 
-                        DDBBHandler ddbb = DDBBHandler.Instance;
-                        ExitStatus saveResult = await ddbb.AddToArrayField(
-                            DataBaseCollections.CONVERSATIONS,
-                            ConversationDDBBStructure.ID,
-                            conversationId,
-                            ConversationDDBBStructure.MESSAGES,
-                            messageToSave
-                        );
+                        _ = await ChatHandler.AddMessageToConversation(messageToSave, conversationId);
                     }
                 }
             }
@@ -182,7 +176,5 @@ namespace chatserver.server
                 );
             }
         }
-
-
     }
 }

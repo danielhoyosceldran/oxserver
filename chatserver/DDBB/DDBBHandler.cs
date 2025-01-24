@@ -317,5 +317,29 @@ namespace chatserver.DDBB
                 throw;
             }
         }
+
+        public async Task<ExitStatus> CustomRequest(FilterDefinition<BsonDocument> filter, UpdateDefinition<BsonDocument> update, string collectionName)
+        {
+            try
+            {
+                var database = client.GetDatabase(DATA_BASE_NAME);
+                var collection = database.GetCollection<BsonDocument>(collectionName);
+
+                // Apply the filter and update operations
+                var result = await collection.UpdateManyAsync(filter, update);
+
+                Logger.ConsoleLogger.Debug($"Matched {result.MatchedCount} documents and modified {result.ModifiedCount} documents.");
+
+                return new ExitStatus()
+                {
+                    status = result.MatchedCount > 0 ? ExitCodes.OK : ExitCodes.NOT_FOUND,
+                };
+            }
+            catch (Exception ex)
+            {
+                Logger.ConsoleLogger.Error($"Error executing CustomRequest: {ex.Message}");
+                throw;
+            }
+        }
     }
 }
