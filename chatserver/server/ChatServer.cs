@@ -148,26 +148,17 @@ namespace chatserver.server
 
         private static async Task HandlePrivateMessages(string from, string to, string conversationId, JsonObject jsonObjectMessage)
         {
+            string messageToSend = jsonObjectMessage.ToJsonString(new JsonSerializerOptions
+            {
+                WriteIndented = false
+            });
             if (webSockets.TryGetValue(to, out WebSocket toSocket))
             {
-                jsonObjectMessage["readed"] = true;
-                string messageToSend = jsonObjectMessage.ToJsonString(new JsonSerializerOptions
-                {
-                    WriteIndented = false
-                });
                 await SendMessageAsync(toSocket, messageToSend);
-            }
-            else
-            {
-                Logger.ConsoleLogger.Debug($"Destinatari no trobat: {to}");
             }
 
             if (webSockets.TryGetValue(from, out WebSocket fromSocket))
             {
-                string messageToSend = jsonObjectMessage.ToJsonString(new JsonSerializerOptions
-                {
-                    WriteIndented = false
-                });
                 await SendMessageAsync(fromSocket, messageToSend);
             }
 
