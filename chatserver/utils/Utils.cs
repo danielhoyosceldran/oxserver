@@ -84,11 +84,24 @@ namespace chatserver.utils
             return JsonDocument.Parse(updatedJsonString).RootElement;
         }
 
-        public static JsonObject ConertIntoJsonObject(string content)
+        public static JsonObject ConvertIntoJsonObject(string content)
         {
             using JsonDocument doc = JsonDocument.Parse(content);
             JsonElement root = doc.RootElement;
             return JsonNode.Parse(root.GetRawText())!.AsObject();
+        }
+
+        public static JsonObject[] ConvertStringToJsonObjectArray(string jsonArrayString)
+        {
+            JsonNode? node = JsonNode.Parse(jsonArrayString);
+            if (node is JsonArray jsonArray)
+            {
+                return jsonArray.Select(element => element!.AsObject()).ToArray();
+            }
+            else
+            {
+                throw new JsonException("The provided string is not a valid JSON array.");
+            }
         }
 
         public static string GetRequiredJsonProperty(JsonObject jsonObject, string key)

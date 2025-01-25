@@ -6,6 +6,8 @@ using System.Security.Policy;
 using System.Formats.Asn1;
 using Microsoft.Extensions.Options;
 using System.Xml.Linq;
+using System.Text.Json.Nodes;
+using System.ComponentModel;
 
 namespace chatserver.server.APIs
 {
@@ -213,9 +215,70 @@ namespace chatserver.server.APIs
 
         public async Task<ExitStatus> RetrieveContacts(string username)
         {
-            DDBBHandler ddbb = DDBBHandler.Instance;
-            ExitStatus result = await ddbb.RetrieveField(DataBaseCollections.USERS, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.CONTACTS);
-            return result;
+            try
+            {
+                DDBBHandler ddbb = DDBBHandler.Instance;
+                ExitStatus result = await ddbb.RetrieveField(DataBaseCollections.USERS, UsersDDBBStructure.USERNAME, username, UsersDDBBStructure.CONTACTS);
+
+                if (result.status != ExitCodes.OK) return result;
+                
+                string contacts = (string)result.result!;
+                JsonObject[] jsonObjectContacts = Utils.ConvertStringToJsonObjectArray(contacts);
+                foreach (JsonObject contact in jsonObjectContacts)
+                {
+                    // 1. Extracting the conversation ID
+                    string contactUsername = Utils.GetRequiredJsonProperty(contact, "username");
+                    ExitStatus conversationIdResult = await ddbb.RetrieveArrayField(
+                        DataBaseCollections.USERS, 
+                        UsersDDBBStructure.USERNAME, 
+                        username, 
+                        UsersDDBBStructure.CONVERSATIONS, 
+                        UsersDDBBStructure.CHAT, 
+                        contactUsername
+                    );
+
+                    if (conversationIdResult.status != ExitCodes.OK) return conversationIdResult;
+                    string conversationId = ((Dictionary<string, string>)conversationIdResult.result!)["conversationId"];
+
+                    // 2. Extracting last message
+                    ExitStatus lastMessageResult = await ddbb.RetrieveLastArrayElement(
+                        DataBaseCollections.CONVERSATIONS, 
+                        ConversationDDBBStructure.ID, 
+                        conversationId, 
+                        ConversationDDBBStructure.MESSAGES
+                    );
+
+                    if (lastMessageResult.status == ExitCodes.EXCEPTION)
+                    {
+                        contact["read"] = true;
+                        contact["lastMessage"] = "";
+                        continue;
+                    }
+                    if (lastMessageResult.status != ExitCodes.OK) return lastMessageResult;
+                    JsonObject lastMessage = Utils.ConvertIntoJsonObject((string)lastMessageResult.result!);
+
+                    // 3. Extracting needed information
+                    string to = Utils.GetRequiredJsonProperty(lastMessage, "to");
+                    bool read = Utils.GetRequiredJsonProperty(lastMessage, "read") == "true";
+                    read = !(to == username) || read; // If read == false and the message it's for "me" mark as true. Otherwise false.
+
+                    // 4. Saving results
+                    contact["read"] = read;
+                    contact["lastMessage"] = Utils.GetRequiredJsonProperty(lastMessage, "content"); // TODO: By the moment only works with type "text" messages.
+                }
+
+                result.result = JsonSerializer.Serialize(jsonObjectContacts);
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return new ExitStatus()
+                {
+                    status = ExitCodes.EXCEPTION,
+                    exception = ex.Message
+                };
+            }
         }
 
         // Contacts

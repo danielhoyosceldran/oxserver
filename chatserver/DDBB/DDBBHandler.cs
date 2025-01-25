@@ -341,5 +341,55 @@ namespace chatserver.DDBB
                 throw;
             }
         }
+
+        public async Task<ExitStatus> RetrieveLastArrayElement(string collectionName, string key, string value, string arrayField)
+        {
+            try
+            {
+                var database = client.GetDatabase(DATA_BASE_NAME);
+                var collection = database.GetCollection<BsonDocument>(collectionName);
+
+                // Create the filter to match the document
+                var filter = key == "_id"
+                    ? Builders<BsonDocument>.Filter.Eq(key, ObjectId.Parse(value))
+                    : Builders<BsonDocument>.Filter.Eq(key, value);
+
+                // Sort the array in descending order by index and limit to 1
+                var projection = Builders<BsonDocument>.Projection
+                    .Slice(arrayField, -1); // Get the last element of the array
+
+                // Query the document with the specified filter and projection
+                var result = await collection.Find(filter).Project(projection).FirstOrDefaultAsync();
+
+                // Check if the result and arrayField exist
+                if (result != null && result.Contains(arrayField))
+                {
+                    var lastElement = result[arrayField].AsBsonArray.FirstOrDefault();
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.OK,
+                        result = lastElement.ToJson()
+                    };
+                }
+                else
+                {
+                    return new ExitStatus
+                    {
+                        status = ExitCodes.NOT_FOUND,
+                        message = "Array field not found or document does not exist."
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.DataBaseLogger.Error($"Error retrieving last element of the array: {ex.Message}");
+                return new ExitStatus
+                {
+                    status = ExitCodes.EXCEPTION,
+                    exception = ex.Message
+                };
+            }
+        }
+
     }
 }

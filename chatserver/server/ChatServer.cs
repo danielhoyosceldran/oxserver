@@ -107,7 +107,7 @@ namespace chatserver.server
             try
             {
                 // For better manipulation
-                JsonObject container = Utils.ConertIntoJsonObject(message);
+                JsonObject container = Utils.ConvertIntoJsonObject(message);
 
                 string type = Utils.GetRequiredJsonProperty(container, "type");
                 string conversationId = Utils.GetRequiredJsonProperty(container, "conversationId");
@@ -118,7 +118,7 @@ namespace chatserver.server
                 }
                 else if (type == "userMessage")
                 {
-                    JsonObject jsonObjectMessage = Utils.ConertIntoJsonObject(Utils.GetRequiredJsonProperty(container, "content"));
+                    JsonObject jsonObjectMessage = Utils.ConvertIntoJsonObject(Utils.GetRequiredJsonProperty(container, "content"));
                     string messageType = Utils.GetRequiredJsonProperty(jsonObjectMessage, "type");
 
                     if (messageType == "text")
