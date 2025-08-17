@@ -9,14 +9,14 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace chatserver.authentication
 {
-    public class TokenProvider
+    public class TokenService
     {
-        private static TokenProvider instance = new TokenProvider(
+        private static TokenService instance = new TokenService(
             GetSecretKey(), // should exists "JWT_SECRET_KEY" in environment variables
             60, // minutes
             7 // days
         );
-        public static TokenProvider Instance { get { return instance; } }
+        public static TokenService Instance { get { return instance; } }
 
         private readonly string _secretKey;
         private readonly int _accessTokenExpirationMinutes;
@@ -40,7 +40,7 @@ namespace chatserver.authentication
             }
         }
 
-        public TokenProvider(string secretKey, int accessTokenExpirationMinutes, int refreshTokenExpirationDays)
+        public TokenService(string secretKey, int accessTokenExpirationMinutes, int refreshTokenExpirationDays)
         {
             _secretKey = secretKey;
             _accessTokenExpirationMinutes = accessTokenExpirationMinutes;

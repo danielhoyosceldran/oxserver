@@ -13,11 +13,11 @@ using System.Text.Json;
 
 namespace chatserver.authentication
 {
-    internal class SessionHandler
+    internal class SessionManager
     {
-        private static SessionHandler instance = new SessionHandler();
-        private SessionHandler() { }
-        public static SessionHandler Instance { get { return instance; } }
+        private static SessionManager instance = new SessionManager();
+        private SessionManager() { }
+        public static SessionManager Instance { get { return instance; } }
         private static readonly string DB_COLLECTION_NAME = "sessions";
 
         private static int sessionsCounter = 0;
@@ -206,13 +206,13 @@ namespace chatserver.authentication
 
             DDBBHandler dDBBHandler = DDBBHandler.Instance;
             string storedRefreshToken = (string) (await dDBBHandler.RetrieveField(DB_COLLECTION_NAME, "username", username, "refreshToken")).result!;
-            bool tokenValidationResult = TokenProvider.Instance.ValidateRefreshToken(token, storedRefreshToken);
+            bool tokenValidationResult = TokenService.Instance.ValidateRefreshToken(token, storedRefreshToken);
             if (tokenValidationResult)
             {
                 string userId = (string) (await UsersHandler.Instance.GetUserId(username)).result!;
                 result.status = ExitCodes.OK;
                 result.message = "Refresh Token valid";
-                string accessToken = TokenProvider.Instance.GenerateToken(userId, username);
+                string accessToken = TokenService.Instance.GenerateToken(userId, username);
                 await UpdateAccessTokenInDdbb(accessToken, username);
                 result.result = accessToken;
             }
@@ -222,7 +222,7 @@ namespace chatserver.authentication
         public static ExitStatus CustomValidateToken(string token, bool isAccessToken = true)
         {
             Logger.ConsoleLogger.Debug("[CustomValidateToken] - Start");
-            var returnval = TokenProvider.Instance.ValidateToken(token, isAccessToken);
+            var returnval = TokenService.Instance.ValidateToken(token, isAccessToken);
             ExitCodes res = returnval == null
                 ? ExitCodes.UNAUTHORIZED
                 : returnval.Identity!.IsAuthenticated ? ExitCodes.OK : ExitCodes.UNAUTHORIZED;
@@ -241,8 +241,8 @@ namespace chatserver.authentication
         {
             string userId = (string)(await UsersHandler.Instance.GetUserId(username)).result!;
             TokensStruct tokens = new TokensStruct();
-            tokens.accessToken = TokenProvider.Instance.GenerateToken(userId, username);
-            tokens.refreshToken = TokenProvider.Instance.GenerateRefreshToken();
+            tokens.accessToken = TokenService.Instance.GenerateToken(userId, username);
+            tokens.refreshToken = TokenService.Instance.GenerateRefreshToken();
 
             await UpdateSession(username, tokens);
 

@@ -267,6 +267,7 @@ namespace chatserver.server.APIs
                     contact["lastMessage"] = Utils.GetRequiredJsonProperty(lastMessage, "content"); // TODO: By the moment only works with type "text" messages.
                 }
 
+                result.message = result.status == ExitCodes.OK ? "All contacts retrieved successfully!" : "An error has occurred while retrieving the contacts.";
                 result.result = JsonSerializer.Serialize(jsonObjectContacts);
 
                 return result;

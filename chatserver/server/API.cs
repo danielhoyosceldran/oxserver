@@ -141,7 +141,7 @@ namespace chatserver.server
             {
                 Logger.ConsoleLogger.Debug("[checkAuthorization] - There is cookie");
                 // Revisar la validesa de la cookie
-                ExitStatus sessionValidation = SessionHandler.CustomValidateToken(sessionCookie.Value);
+                ExitStatus sessionValidation = SessionManager.CustomValidateToken(sessionCookie.Value);
                 result = sessionValidation.status == ExitCodes.OK
                     ? new ExitStatus { status = ExitCodes.OK, message = "Access granted" }
                     : new ExitStatus { status = ExitCodes.UNAUTHORIZED, message = "Invalid session" };
@@ -185,7 +185,7 @@ namespace chatserver.server
             }
 
             string token = authHeader.Substring("Bearer ".Length);
-            ExitStatus refreshTokenResult = await SessionHandler.RefreshSession(token, username);
+            ExitStatus refreshTokenResult = await SessionManager.RefreshSession(token, username);
 
             if (refreshTokenResult.status == ExitCodes.OK)
             {
@@ -244,7 +244,7 @@ namespace chatserver.server
 
             string refreshToken = authHeader.Substring("Bearer ".Length);
 
-            ExitStatus usernameResult = await SessionHandler.GetUsernameFromRefreshToken(refreshToken);
+            ExitStatus usernameResult = await SessionManager.GetUsernameFromRefreshToken(refreshToken);
             if (usernameResult.status != ExitCodes.OK) return new ExitStatus { status = ExitCodes.BAD_REQUEST, message="No session stored with this username" };
             string username = (string)usernameResult.result!;
 
@@ -304,7 +304,7 @@ namespace chatserver.server
                 var ddbb = DDBBHandler.Instance;
                 string username = (string)result.result!;
                 await ddbb.delete("sessions", "username", username);
-                TokensStruct tokens = (TokensStruct)(await SessionHandler.GetTokens(username)).result!; // TODO - complete
+                TokensStruct tokens = (TokensStruct)(await SessionManager.GetTokens(username)).result!; // TODO - complete
 
                 AddCookie(response, "accessToken", tokens.accessToken, 15);
                 AddCookie(response, "username", username, 0, false);
@@ -324,14 +324,14 @@ namespace chatserver.server
         {
             var sessionCookie = request.Cookies["accessToken"];
             if (sessionCookie == null) return new ExitStatus { status = ExitCodes.BAD_REQUEST };
-            ExitStatus usernameResult = await SessionHandler.GetUsernameFromAccessToken(sessionCookie.Value);
+            ExitStatus usernameResult = await SessionManager.GetUsernameFromAccessToken(sessionCookie.Value);
             if (usernameResult.status != ExitCodes.OK) return new ExitStatus { status = ExitCodes.BAD_REQUEST, message = "No session stored with this username" };
             string username = (string)usernameResult.result!;
 
-            _ = await SessionHandler.deleteSession(username);
+            _ = await SessionManager.deleteSession(username);
             AddCookie(response, "accessToken", "", 1);
 
-            return await SessionHandler.SignOut("");
+            return await SessionManager.SignOut("");
         }
 
         private static async Task<ExitStatus> HandleConversationRequests(HttpListenerRequest request, HttpListenerResponse response, List<string> resources)
@@ -340,7 +340,7 @@ namespace chatserver.server
             {
                 var sessionCookie = request.Cookies["accessToken"];
                 var accessToken = sessionCookie!.Value;
-                ExitStatus usernameResult = await SessionHandler.GetUsernameFromAccessToken(accessToken);
+                ExitStatus usernameResult = await SessionManager.GetUsernameFromAccessToken(accessToken);
 
                 if (usernameResult.status == ExitCodes.ERROR) { throw new Exception(usernameResult.message); }
                 
@@ -396,7 +396,7 @@ namespace chatserver.server
 
                 var sessionCookie = request.Cookies["accessToken"];
                 var accessToken = sessionCookie!.Value;
-                ExitStatus usernameResult = await SessionHandler.GetUsernameFromAccessToken(accessToken);
+                ExitStatus usernameResult = await SessionManager.GetUsernameFromAccessToken(accessToken);
                 if (usernameResult.status == ExitCodes.ERROR)
                 {
                     throw new Exception(usernameResult.message);
@@ -503,12 +503,32 @@ namespace chatserver.server
             response.OutputStream.Write(buffer, 0, buffer.Length);
         }
 
+        //private static void AddCorsHeaders(HttpListenerResponse response, HttpListenerRequest request)
+        //{
+         //   response.AddHeader("Access-Control-Allow-Origin", request.Headers["Origin"] ?? "*");
+         //   response.AddHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS");
+         //   response.AddHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+         //   response.AddHeader("Access-Control-Allow-Credentials", "true");
+        //}
+
         private static void AddCorsHeaders(HttpListenerResponse response, HttpListenerRequest request)
         {
-            response.AddHeader("Access-Control-Allow-Origin", request.Headers["Origin"] ?? "*");
+            var allowedOrigins = new List<string>
+            {
+                "http://localhost:5173",
+                "http://192.168.1.9:5173"
+            };
+
+            // Permetre dinàmicament orígens de la mateixa xarxa
+            string origin = request.Headers["Origin"];
+            if (origin != null && (allowedOrigins.Contains(origin) || origin.StartsWith("http://192.168.")))
+            {
+                response.AddHeader("Access-Control-Allow-Origin", origin);
+                response.AddHeader("Access-Control-Allow-Credentials", "true");
+            }
+
             response.AddHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS");
             response.AddHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-            response.AddHeader("Access-Control-Allow-Credentials", "true");
         }
 
         private static ExitStatus NotFoundResponse(HttpListenerResponse response)
@@ -530,7 +550,7 @@ namespace chatserver.server
             Logger.ConsoleLogger.Debug($"[AddCookie] - Expires: {DateTime.UtcNow.AddMinutes(liveMinutes)}");
             string expires = liveMinutes > 0 ? $"Expires={DateTime.UtcNow.AddMinutes(liveMinutes):R}" : "";
             string httponly = httpOnly ? "HttpOnly" : "";
-            response.Headers.Add("Set-Cookie", $"{key}={value}; {httponly}; Path=/; {expires};");
+            response.Headers.Add("Set-Cookie", $"Domain=192.168.1.9; {key}={value}; {httponly}; Path=/; {expires};");
             Logger.ConsoleLogger.Debug("[AddCookie] - End");
         }
     }
